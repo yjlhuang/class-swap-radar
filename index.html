@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>調課雷達</title>
+<style>
+  :root{
+    --paper:#EEF1F5; --card:#FFFFFF; --ink:#1B2530; --soft:#5C6875;
+    --line:#D8DEE6; --line2:#E9EDF2;
+    --accent:#2E5266;            /* slate blue */
+    --you:#DB8A2E; --you-bg:#FBEEDA; --you-line:#E7B778;
+    --go:#2E9E6B; --go-bg:#E4F4EC;
+    --stop:#C6564E; --stop-bg:#F7E6E4;
+    --fixed:#8A93A0; --fixed-bg:#EEF0F3;
+    --font: system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--font); background:var(--paper); color:var(--ink);
+       font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px; margin:0 auto; padding:18px 16px 60px;}
+
+  /* header */
+  .top{display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 16px; margin-bottom:4px;}
+  .brand{font-size:22px; font-weight:800; letter-spacing:2px;}
+  .brand small{font-weight:600; font-size:12px; color:var(--soft); letter-spacing:1px; margin-left:8px;}
+  .hint{font-size:12.5px; color:var(--soft); margin:2px 0 16px;}
+
+  .bar{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px;}
+  .bar label{font-size:12px; color:var(--soft); font-weight:600;}
+  select{font-family:var(--font); font-size:15px; color:var(--ink); background:var(--card);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; cursor:pointer;}
+  select:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  .teacher-pick{font-size:16px; font-weight:700; padding:9px 12px; border-color:var(--accent);}
+
+  .cols{display:grid; grid-template-columns:1.35fr 1fr; gap:18px; align-items:start;}
+  @media (max-width:880px){ .cols{grid-template-columns:1fr;} }
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 1px 2px rgba(20,30,45,.04); overflow:hidden;}
+  .card-h{padding:12px 15px; border-bottom:1px solid var(--line2); display:flex;
+    align-items:baseline; justify-content:space-between; gap:8px;}
+  .card-h h2{margin:0; font-size:14px; font-weight:800; letter-spacing:1px;}
+  .card-h .sub{font-size:12px; color:var(--soft);}
+
+  /* timetable grid */
+  table{border-collapse:collapse; width:100%;}
+  th,td{border:1px solid var(--line2); text-align:center; vertical-align:middle;}
+  thead th{background:#F6F8FA; font-size:13px; font-weight:700; color:var(--accent); padding:8px 2px;}
+  .t-time{width:52px; font-size:10.5px; color:var(--soft); font-weight:600; line-height:1.25;
+    background:#F6F8FA; white-space:nowrap; padding:4px 2px;}
+  .t-time b{display:block; font-size:12px; color:var(--ink); font-weight:800;}
+  .cell{height:50px; padding:3px; font-size:13px; position:relative;}
+  .cell.empty{background:#FCFDFE;}
+  .cell.klass{background:var(--you-bg); cursor:pointer;}
+  .cell.klass:hover{filter:brightness(.97);}
+  .cell.klass .sub{font-weight:700; line-height:1.15;}
+  .cell.klass .cls{font-size:11px; color:var(--soft); margin-top:1px;}
+  .cell.fixed{background:var(--fixed-bg); cursor:pointer;}
+  .cell.fixed .sub{color:var(--fixed);}
+  .cell.sel{outline:3px solid var(--you); outline-offset:-3px;}
+  .cell .tag{position:absolute; top:2px; right:3px; font-size:9px; font-weight:700;
+    color:var(--you); background:#fff; border:1px solid var(--you-line); border-radius:4px; padding:0 3px;}
+  .lunch td{background:#E7EBF0; height:8px; padding:0; border-left:0; border-right:0;}
+
+  /* right panel */
+  .pane .empty-note{padding:26px 18px; color:var(--soft); font-size:13.5px; text-align:center; line-height:1.7;}
+  .pane .empty-note b{color:var(--ink);}
+
+  .radar-head{padding:13px 15px; background:var(--you-bg); border-bottom:1px solid var(--you-line);}
+  .radar-head .big{font-size:16px; font-weight:800;}
+  .radar-head .meta{font-size:12.5px; color:#8a5a1c; margin-top:2px;}
+  .radar-body{padding:6px 12px 14px;}
+
+  .cand{border:1px solid var(--line); border-radius:11px; margin-top:11px; overflow:hidden;}
+  .cand-h{padding:9px 12px; background:#F7F9FB; border-bottom:1px solid var(--line2);
+    display:flex; align-items:baseline; gap:8px;}
+  .cand-h .nm{font-weight:800; font-size:14.5px;}
+  .cand-h .rl{font-size:12px; color:var(--soft);}
+  .slot{display:flex; align-items:flex-start; gap:9px; padding:9px 12px; border-top:1px solid var(--line2);}
+  .slot:first-child{border-top:0;}
+  .light{flex:0 0 auto; width:11px; height:11px; border-radius:50%; margin-top:5px;}
+  .go .light{background:var(--go);} .stop .light{background:var(--stop);}
+  .slot .when{font-weight:700; font-size:13.5px; white-space:nowrap;}
+  .slot .why{font-size:12px; color:var(--soft); margin-top:1px;}
+  .slot.go .why{color:var(--go); font-weight:600;}
+  .badge{display:inline-block; font-size:10.5px; font-weight:700; border-radius:5px;
+    padding:1px 5px; margin-left:6px; vertical-align:1px;}
+  .badge.lian{background:#FFF3D6; color:#9A6A00; border:1px solid #EBCB7D;}
+  .grow{flex:1 1 auto; min-width:0;}
+  .no-cand{padding:16px 14px; color:var(--soft); font-size:13px;}
+  .viewbtn{margin-left:auto; font-family:var(--font); font-size:12px; font-weight:700; cursor:pointer;
+    border:1px solid var(--line); background:#fff; color:var(--accent); border-radius:7px; padding:4px 9px;}
+  .viewbtn:hover{border-color:var(--accent);}
+
+  /* moved / ghost cells (期初試調痕跡) */
+  .cell.moved{box-shadow:inset 5px 0 0 var(--sc);}
+  .cell .stepdot{position:absolute; top:3px; left:4px; width:9px; height:9px; border-radius:50%;
+    background:var(--sc); border:1.5px solid #fff;}
+  .cell.ghost{background:#FAFBFC; border:1px dashed var(--line); cursor:default;}
+  .cell.ghost .gsub{font-size:11.5px; color:#AEB6C0; line-height:1.2;}
+  .cell.ghost .gtag{font-size:10px; color:#AEB6C0; font-weight:700; margin-top:2px;}
+  .cell.ghost .gbar{position:absolute; top:3px; left:4px; width:9px; height:9px; border-radius:50%;
+    background:var(--sc); opacity:.5;}
+
+  /* modal */
+  .modal-back{position:fixed; inset:0; background:rgba(20,28,40,.42); display:flex;
+    align-items:center; justify-content:center; padding:18px; z-index:50;}
+  .modal{background:var(--card); border-radius:14px; max-width:640px; width:100%;
+    max-height:90vh; overflow:auto; box-shadow:0 12px 40px rgba(15,23,35,.28);}
+  .modal-h{position:sticky; top:0; background:var(--card); display:flex; align-items:center;
+    justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid var(--line2);}
+  .modal-h .mt{font-size:15px; font-weight:800;}
+  .modal-h .mx{border:0; background:#F0F2F5; border-radius:8px; width:30px; height:30px; cursor:pointer;
+    font-size:17px; color:var(--soft); line-height:1;}
+  .modal-h .mx:hover{background:#E5E8EC;}
+  .modal-body{padding:12px 14px 16px;}
+  .modal-legend{font-size:11.5px; color:var(--soft); margin:2px 2px 10px; display:flex; gap:14px; flex-wrap:wrap;}
+  .modal-legend i{display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:4px;}
+  .cell.hl-take{outline:3px solid var(--go); outline-offset:-3px;}
+  .cell.hl-come{outline:3px dashed var(--you); outline-offset:-3px; background:var(--you-bg);}
+
+  .stepdot-inline{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:0;}
+  .pngbtn{font-family:var(--font); font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; color:var(--ink);}
+  .pngbtn:hover{border-color:var(--soft);}
+
+  /* now tab */
+  .tabs{display:flex; gap:6px; padding:10px 12px 0;}
+  .tab{font-size:13px; font-weight:700; color:var(--soft); background:transparent; border:0;
+    border-bottom:2px solid transparent; padding:6px 4px 8px; cursor:pointer; font-family:var(--font);}
+  .tab.on{color:var(--accent); border-color:var(--accent);}
+  .now-ctl{display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px 4px;}
+  .now-ctl select{padding:6px 9px; font-size:14px;}
+  .now-tbl{width:100%; margin:8px 0 2px;}
+  .now-tbl td{padding:8px 10px; font-size:14px; border-left:0; border-right:0; text-align:left;}
+  .now-tbl .c{font-weight:800; width:56px; color:var(--accent);}
+  .now-tbl .free{color:var(--soft);}
+  .now-tbl .who b{font-weight:700;}
+  .look{margin:10px 14px 16px; padding:11px 13px; background:#F6F8FA; border:1px solid var(--line2);
+    border-radius:10px; font-size:14px;}
+  .look .r{font-weight:800; margin-top:4px;}
+  .look .r.free{color:var(--go);} .look .r.busy{color:var(--stop);}
+
+  .why.ctx{color:var(--soft); margin-top:3px; font-size:11.5px;}
+  .swapbtn{flex:0 0 auto; align-self:center; font-family:var(--font); font-size:12.5px; font-weight:700;
+    color:#fff; background:var(--go); border:0; border-radius:8px; padding:7px 11px; cursor:pointer; white-space:nowrap;}
+  .swapbtn:hover{filter:brightness(1.05);}
+  .swapbtn:focus-visible{outline:2px solid var(--ink); outline-offset:1px;}
+
+  #logbar{background:#FFF8EC; border:1px solid var(--you-line); border-radius:11px; padding:10px 13px; margin-bottom:16px;}
+  .logtop{display:flex; align-items:center; gap:8px; font-size:13px;}
+  .logtop b{letter-spacing:1px;}
+  .logbtns{margin-left:auto; display:flex; gap:8px;}
+  .logbtns button{font-family:var(--font); font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; color:var(--ink);}
+  .logbtns button:hover{border-color:var(--soft);}
+  .loglist{margin:8px 0 0; padding-left:22px; font-size:12.5px; color:var(--soft); line-height:1.7;}
+  .share{margin-top:11px; padding-top:11px; border-top:1px dashed var(--you-line);}
+  .share-h{font-size:12.5px; color:#8a5a1c; margin-bottom:7px;}
+  .share-btns{display:flex; flex-wrap:wrap; gap:8px;}
+  .share-note{font-size:12px; color:var(--soft); margin:10px 0 6px; line-height:1.6;}
+  .share-note b{color:var(--ink);}
+  #shareOut textarea{width:100%; box-sizing:border-box; font-family:var(--font); font-size:13px;
+    color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:9px 11px; resize:vertical;
+    background:#fff; line-height:1.6;}
+  #shareOut #copyBtn{margin-top:7px;}
+  .copymsg{font-size:12px; color:var(--go); font-weight:700; margin-left:9px;}
+  .adjtag{display:inline-block; font-size:11px; font-weight:700; color:var(--you);
+    background:var(--you-bg); border:1px solid var(--you-line); border-radius:6px; padding:1px 7px; margin-left:6px;}
+
+  .footer{margin-top:34px; padding-top:16px; border-top:1px solid var(--line); text-align:center;
+    font-size:12px; color:var(--soft); line-height:1.7;}
+  .footer b{color:var(--ink); font-weight:700; letter-spacing:1px;}
+  #emptyState{padding:40px 20px; text-align:center; color:var(--soft);}
+  #emptyState .es-t{font-size:17px; font-weight:800; color:var(--ink); margin-bottom:8px;}
+  #emptyState .es-b{font-size:13.5px; line-height:1.8; margin-bottom:18px;}
+  .imp-ta{width:100%; max-width:560px; box-sizing:border-box; font-family:var(--font); font-size:12.5px;
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-height:140px; resize:vertical;}
+  .imp-row{display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:12px;}
+  .imp-err{color:var(--stop); font-size:12.5px; font-weight:600; margin-top:8px; min-height:16px;}
+  .btn-primary{font-family:var(--font); font-size:14px; font-weight:700; cursor:pointer; color:#fff;
+    background:var(--accent); border:0; border-radius:9px; padding:9px 16px;}
+  .btn-primary:hover{filter:brightness(1.08);}
+
+  .legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11.5px; color:var(--soft); margin:14px 2px 0;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .sw-you{width:11px;height:11px;border-radius:3px;background:var(--you-bg);border:1px solid var(--you-line);display:inline-block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">調課雷達 <small id="verTag">DEMO</small></div>
+    <button id="dataBtn" class="pngbtn" style="margin-left:auto">換 / 匯入課表資料</button>
+  </div>
+  <div class="hint">選一位老師看課表 → 點你想搬走的那一節 → 右側列出同班任課老師誰能跟你對調。切到「此刻課堂」可查某老師現在有沒有課、在哪班。</div>
+
+  <div class="bar">
+    <label for="tpick">老師</label>
+    <select id="tpick" class="teacher-pick"></select>
+    <span id="tsum" class="hint" style="margin:0"></span>
+  </div>
+
+  <div id="logbar" style="display:none"></div>
+
+  <div id="appMain">
+  <div class="cols">
+    <div class="card">
+      <div class="card-h"><h2 id="gridTitle">課表</h2><span class="sub">點課格 = 選要調的課</span></div>
+      <div style="padding:6px 8px 10px"><div id="grid"></div>
+        <div class="legend">
+          <span><i class="sw-you"></i> 有課</span>
+          <span><i class="dot" style="background:var(--go)"></i> 可對調</span>
+          <span><i class="dot" style="background:var(--stop)"></i> 換不了</span>
+          <span><i class="dot" style="background:var(--fixed)"></i> 固定節次</span>
+          <span><i class="badge lian" style="margin:0">連堂</i> 前後相接、當心拆散</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card pane">
+      <div class="tabs">
+        <button class="tab on" id="tabRadar">調課雷達</button>
+        <button class="tab" id="tabNow">此刻課堂</button>
+      </div>
+      <div id="paneRadar"></div>
+      <div id="paneNow" style="display:none"></div>
+    </div>
+  </div>
+  </div><!-- /appMain -->
+  <div id="emptyState" style="display:none"></div>
+  <div class="footer" id="footer"></div>
+</div>
+<div id="modalMount"></div>
+
+<script>
+/* ── 資料格式（每筆 = 一格課）──────────────────────────────
+   { cls:班級, day:1~5(一~五), period:1~8, subject:科目, teacher:老師,
+     fixed:true  → 全校固定節次(班週會/社團/朝週會)，雷達自動排除、不可對調
+     flex:true   → 彈性學習/自主學習，可換與否你自己判斷，雷達會標示提醒 }
+   下學期真課表出來，只要把這個陣列整包換掉，程式完全不用動。
+   目前是捏出來的示範資料（全部化名），拿來試流程用。
+──────────────────────────────────────────────────────────── */
+window.SCHEDULE = [
+  // ===== 501（林安為導師，英語文任課）=====
+  {cls:"501",day:1,period:1,subject:"數學",teacher:"陳寬"},
+  {cls:"501",day:1,period:2,subject:"國文",teacher:"黃立"},
+  {cls:"501",day:1,period:3,subject:"歷史",teacher:"張維"},
+  {cls:"501",day:1,period:4,subject:"地理",teacher:"吳庭"},
+  {cls:"501",day:1,period:5,subject:"生物",teacher:"蔡文"},
+  {cls:"501",day:1,period:6,subject:"音樂",teacher:"楊琪"},
+  {cls:"501",day:1,period:7,subject:"英語文",teacher:"林安"},
+  {cls:"501",day:2,period:1,subject:"國文",teacher:"黃立"},
+  {cls:"501",day:2,period:2,subject:"英語文",teacher:"林安"},
+  {cls:"501",day:2,period:3,subject:"數學",teacher:"陳寬"},
+  {cls:"501",day:2,period:4,subject:"歷史",teacher:"張維"},
+  {cls:"501",day:2,period:5,subject:"體育",teacher:"周叡"},
+  {cls:"501",day:2,period:6,subject:"地理",teacher:"吳庭"},
+  {cls:"501",day:3,period:1,subject:"數學",teacher:"陳寬"},
+  {cls:"501",day:3,period:2,subject:"國文",teacher:"黃立"},
+  {cls:"501",day:3,period:3,subject:"生物",teacher:"蔡文"},
+  {cls:"501",day:3,period:4,subject:"歷史",teacher:"張維"},
+  {cls:"501",day:3,period:5,subject:"音樂",teacher:"楊琪"},
+  {cls:"501",day:3,period:7,subject:"英語文",teacher:"林安"},
+  {cls:"501",day:4,period:1,subject:"地理",teacher:"吳庭"},
+  {cls:"501",day:4,period:2,subject:"數學",teacher:"陳寬"},
+  {cls:"501",day:4,period:3,subject:"國文",teacher:"黃立"},
+  {cls:"501",day:4,period:4,subject:"體育",teacher:"周叡"},
+  {cls:"501",day:4,period:5,subject:"自主學習",teacher:"林安",flex:true},
+  {cls:"501",day:5,period:3,subject:"生物",teacher:"蔡文"},
+  {cls:"501",day:5,period:5,subject:"英語文",teacher:"林安"},
+  {cls:"501",day:5,period:6,subject:"班週會",teacher:"林安",fixed:true},
+
+  // ===== 504（林安英語文任課）=====
+  {cls:"504",day:1,period:1,subject:"英語文",teacher:"林安"},
+  {cls:"504",day:1,period:2,subject:"數學",teacher:"陳寬"},
+  {cls:"504",day:1,period:3,subject:"國文",teacher:"黃立"},
+  {cls:"504",day:1,period:4,subject:"歷史",teacher:"張維"},
+  {cls:"504",day:1,period:5,subject:"音樂",teacher:"楊琪"},
+  {cls:"504",day:2,period:1,subject:"英語文",teacher:"林安"},
+  {cls:"504",day:2,period:2,subject:"地理",teacher:"吳庭"},
+  {cls:"504",day:2,period:3,subject:"生物",teacher:"蔡文"},
+  {cls:"504",day:2,period:4,subject:"數學",teacher:"陳寬"},
+  {cls:"504",day:3,period:2,subject:"數學",teacher:"陳寬"},
+  {cls:"504",day:3,period:4,subject:"國文",teacher:"黃立"},
+  {cls:"504",day:4,period:3,subject:"英語文",teacher:"林安"},
+  {cls:"504",day:4,period:4,subject:"歷史",teacher:"張維"},
+  {cls:"504",day:5,period:3,subject:"英語文",teacher:"林安"},
+  {cls:"504",day:5,period:4,subject:"英語文",teacher:"林安"},
+
+  // ===== 506（林安英語文任課）=====
+  {cls:"506",day:1,period:2,subject:"歷史",teacher:"張維"},
+  {cls:"506",day:1,period:3,subject:"地理",teacher:"吳庭"},
+  {cls:"506",day:1,period:5,subject:"英語文",teacher:"林安"},
+  {cls:"506",day:2,period:1,subject:"數學",teacher:"陳寬"},
+  {cls:"506",day:2,period:2,subject:"國文",teacher:"黃立"},
+  {cls:"506",day:2,period:5,subject:"英語文",teacher:"林安"},
+  {cls:"506",day:3,period:1,subject:"英語文",teacher:"林安"},
+  {cls:"506",day:3,period:2,subject:"生物",teacher:"蔡文"},
+  {cls:"506",day:3,period:3,subject:"歷史",teacher:"張維"},
+  {cls:"506",day:4,period:1,subject:"英語文",teacher:"林安"},
+  {cls:"506",day:4,period:2,subject:"國文",teacher:"黃立"},
+
+  // ===== 601 / 610（你不教，但同事在這裡有課 → 讓「空堂」判斷變真實）=====
+  {cls:"601",day:5,period:5,subject:"數學",teacher:"陳寬"},   // 陳寬 週五第5節被卡住
+  {cls:"601",day:4,period:5,subject:"國文",teacher:"黃立"},
+  {cls:"601",day:1,period:6,subject:"社團活動",teacher:"周叡",fixed:true},
+  {cls:"610",day:5,period:5,subject:"歷史",teacher:"張維"},   // 張維 週五第5節也被卡住
+  {cls:"610",day:2,period:3,subject:"地理",teacher:"吳庭"},
+  {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
+];
+/* ── 版本 ── */
+const VERSION = "v0.9.0";
+document.getElementById("verTag").textContent = VERSION + " · DEMO";
+document.getElementById("footer").innerHTML =
+  "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
+
+/* ── 資料：ORIGINAL 原始、WORK 工作副本（可試調），以 id 對應 ── */
+let ORIGINAL=[], WORK=[], workById={}, teachers=[], classes=[], current=null;
+let selected = null;
+let swapLog = [];
+const DAYS = ["一","二","三","四","五"];
+const PERIODS = [
+  {p:1,a:"08:10",b:"09:00"},{p:2,a:"09:10",b:"10:00"},
+  {p:3,a:"10:10",b:"11:00"},{p:4,a:"11:10",b:"12:00"},
+  {p:5,a:"13:05",b:"13:55"},{p:6,a:"14:05",b:"14:55"},
+  {p:7,a:"15:10",b:"16:00"},{p:8,a:"16:10",b:"17:00"},
+];
+const PALETTE = ['#3B82C4','#8B5CF6','#D64F8F','#149C93','#B4761C','#6B8E23','#4A5AB0','#B0413E'];
+const stepColor = i => PALETTE[i % PALETTE.length];
+
+function loadData(arr){
+  ORIGINAL = arr.map((r,i)=>({cls:String(r.cls), day:+r.day, period:+r.period,
+    subject:r.subject, teacher:r.teacher, ...(r.fixed?{fixed:true}:{}), id:i}));
+  WORK = ORIGINAL.map(r=>({...r}));
+  workById = {}; WORK.forEach(r=> workById[r.id]=r);
+  teachers = [...new Set(ORIGINAL.map(r=>r.teacher))].sort((a,b)=>String(a).localeCompare(b,"zh-Hant"));
+  classes  = [...new Set(ORIGINAL.map(r=>r.cls))].sort();
+  current = teachers.includes("林安") ? "林安" : teachers[0];
+  selected=null; swapLog=[]; nowSel=nowSlot();
+  document.getElementById("appMain").style.display="";
+  document.getElementById("emptyState").style.display="none";
+  buildTeacherPick(); renderGrid(); renderRadar();
+}
+
+const at = (t,d,p) => WORK.find(r=>r.teacher===t && r.day===d && r.period===p) || null;
+const isFree = (t,d,p) => !at(t,d,p);
+const classAt = (c,d,p) => WORK.find(r=>r.cls===c && r.day===d && r.period===p) || null;
+const teachersOf = c => [...new Set(WORK.filter(r=>r.cls===c).map(r=>r.teacher))];
+const scheduleOf = t => WORK.filter(r=>r.teacher===t);
+function lianAround(t,c,d,p){
+  const before = p>1 && (at(t,d,p-1)||{}).cls===c && p!==5;
+  const after  = p<8 && (at(t,d,p+1)||{}).cls===c && p!==4;
+  return before||after;
+}
+function ctxLine(t,d,p){
+  const fmt = r => r ? (r.subject+"·"+r.cls) : "空堂";
+  return "他前 "+(p>1?fmt(at(t,d,p-1)):"—")+" ／ 他後 "+(p<8?fmt(at(t,d,p+1)):"—");
+}
+// 這位老師原本在(d,p)有課、現在被調走 → 回傳痕跡
+function ghostFor(t,d,p){
+  const o = ORIGINAL.find(x=>x.teacher===t && x.day===d && x.period===p);
+  if(!o) return null;
+  const w = workById[o.id];
+  if(w.day===d && w.period===p) return null;
+  return {subject:o.subject, cls:o.cls, step:w._step};
+}
+// 這位老師教這班的不重複科目
+function subjectsOf(t,c){
+  return [...new Set(WORK.filter(r=>r.teacher===t && r.cls===c).map(r=>r.subject))].join("、");
+}
+
+/* ── 老師下拉 ── */
+const tpick = document.getElementById("tpick");
+tpick.addEventListener("change", ()=>{ current=tpick.value; selected=null; renderGrid(); renderRadar(); });
+function buildTeacherPick(){
+  tpick.innerHTML="";
+  teachers.forEach(t=>{ const o=document.createElement("option"); o.value=t; o.textContent=t; tpick.appendChild(o); });
+  tpick.value = current;
+}
+
+/* ── 產生某老師的課表 HTML（主格與 Modal 共用）── */
+function gridHTML(teacher, opts={}){
+  const hl = opts.highlight || {};
+  const selDP = opts.selectedDP || null;
+  let h = "<table><thead><tr><th class='t-time'>節次</th>";
+  DAYS.forEach(d=> h+="<th>"+d+"</th>");
+  h += "</tr></thead><tbody>";
+  PERIODS.forEach(P=>{
+    if(P.p===5) h += "<tr class='lunch'><td colspan='6'></td></tr>";
+    h += "<tr><td class='t-time'><b>"+P.p+"</b>"+P.a+"<br>│<br>"+P.b+"</td>";
+    for(let d=1; d<=5; d++){
+      const key=d+"-"+P.p, mark=hl[key];
+      const hlClass = mark==="take" ? " hl-take" : mark==="come" ? " hl-come" : "";
+      const r = at(teacher,d,P.p);
+      if(r){
+        const base = r.fixed ? "fixed" : "klass";
+        const moved = (r._step!=null);
+        const sc = moved ? " style=\"--sc:"+stepColor(r._step)+"\"" : "";
+        const dot = moved ? "<span class='stepdot'></span>" : "";
+        const sel = selDP && selDP.d===d && selDP.p===P.p ? " sel":"";
+        const lian = !r.fixed && lianAround(teacher,r.cls,d,P.p) ? "<span class='tag'>連堂</span>":"";
+        h += "<td class='cell "+base+(moved?" moved":"")+sel+hlClass+"'"+sc+" data-d='"+d+"' data-p='"+P.p+"'>"
+           + dot + lian + "<div class='sub'>"+r.subject+"</div>"
+           + (r.fixed?"":"<div class='cls'>"+r.cls+"</div>") + "</td>";
+      } else {
+        const g = ghostFor(teacher,d,P.p);
+        if(g){
+          const sc = g.step!=null ? " style=\"--sc:"+stepColor(g.step)+"\"" : "";
+          h += "<td class='cell ghost"+hlClass+"'"+sc+">"
+             + (g.step!=null?"<span class='gbar'></span>":"")
+             + "<div class='gsub'>原 "+g.subject+" "+g.cls+"</div><div class='gtag'>已調出</div></td>";
+        } else {
+          const comeLbl = mark==="come" ? "<div class='cls' style='color:var(--you)'>↤ 對調來此</div>" : "";
+          h += "<td class='cell empty"+hlClass+"'>"+comeLbl+"</td>";
+        }
+      }
+    }
+    h += "</tr>";
+  });
+  return h + "</tbody></table>";
+}
+
+/* ── 主課表 ── */
+function renderGrid(){
+  document.getElementById("gridTitle").textContent = current + " 課表";
+  const mine = scheduleOf(current);
+  const adjusted = mine.some(r=>r._step!=null) || ORIGINAL.some(o=>o.teacher===current && workById[o.id] && (workById[o.id].day!==o.day||workById[o.id].period!==o.period));
+  document.getElementById("tsum").innerHTML =
+    "共 "+mine.length+" 節 · 任課班級 "+[...new Set(mine.map(r=>r.cls))].sort().join("、")
+    + (adjusted ? " <span class='adjtag'>調整後 · 可截圖傳他</span>" : "");
+  const g = document.getElementById("grid");
+  g.innerHTML = gridHTML(current, {selectedDP: selected?{d:selected.day,p:selected.period}:null});
+  g.querySelectorAll(".cell.klass, .cell.fixed").forEach(td=>{
+    td.addEventListener("click", ()=>{
+      selected = at(current, +td.dataset.d, +td.dataset.p);
+      showTab("radar"); renderGrid(); renderRadar();
+    });
+  });
+  renderLog();
+}
+
+/* ── 調課雷達 ── */
+function renderRadar(){
+  const box = document.getElementById("paneRadar");
+  if(!selected){
+    box.innerHTML = "<div class='empty-note'>點左邊<b>你想搬走的那一節</b>，這裡就會列出<br>同班其他任課老師誰能跟你對調。</div>";
+    return;
+  }
+  const sel = selected, dayTxt = "週"+DAYS[sel.day-1]+" 第"+sel.period+"節";
+  let h = "<div class='radar-head'><div class='big'>"+dayTxt+" · "+sel.cls+" "+sel.subject+"</div>";
+  if(sel.fixed){ box.innerHTML = h + "<div class='meta'>固定節次，不開放對調。</div></div>"; return; }
+  const youLian = lianAround(current, sel.cls, sel.day, sel.period);
+  h += "<div class='meta'>要把這節換給 "+sel.cls+" 的其他任課老師"
+     + (youLian ? " · <b>這節是連堂，換走會拆散</b>":"") + "</div></div><div class='radar-body'>";
+
+  const others = teachersOf(sel.cls).filter(t=>t!==current);
+  const blocks = others.map(t=>{
+    const slots = WORK.filter(r=>r.teacher===t && r.cls===sel.cls && !r.fixed);
+    const rows = slots.map(s=>{
+      const youOk = isFree(current, s.day, s.period);
+      const tOk   = isFree(t, sel.day, sel.period);
+      const ok = youOk && tOk;
+      const lian = lianAround(t, sel.cls, s.day, s.period);
+      let why;
+      if(ok){ why = "可換：你去上「週"+DAYS[s.day-1]+"第"+s.period+"節」，他來上你這節"; }
+      else{
+        const rs=[];
+        if(!youOk){ const c=at(current,s.day,s.period); rs.push("你 週"+DAYS[s.day-1]+"第"+s.period+"節有課("+c.cls+" "+c.subject+")"); }
+        if(!tOk){ const c=at(t,sel.day,sel.period); rs.push(t+" "+dayTxt+"有課("+c.cls+" "+c.subject+")"); }
+        why = rs.join("；");
+      }
+      return {s,ok,lian,why};
+    }).sort((a,b)=> b.ok-a.ok);
+    return {t, slots, rows, anyOk:rows.some(r=>r.ok)};
+  }).sort((a,b)=> b.anyOk-a.anyOk);
+
+  blocks.forEach(bl=>{
+    const subj = subjectsOf(bl.t, sel.cls);
+    h += "<div class='cand'><div class='cand-h'><span class='nm'>"+bl.t+"</span>"
+       + "<span class='rl'>教 "+sel.cls+" "+subj+" · "+bl.slots.length+" 節</span>"
+       + "<button class='viewbtn' data-t='"+bl.t+"'>看對方課表</button></div>";
+    if(bl.rows.length===0) h += "<div class='no-cand'>在 "+sel.cls+" 沒有可對調的課</div>";
+    bl.rows.forEach(r=>{
+      const lian = r.lian ? "<span class='badge lian'>他這格也連堂</span>":"";
+      const btn = r.ok ? "<button class='swapbtn' data-t='"+bl.t+"' data-sd='"+r.s.day+"' data-sp='"+r.s.period+"'>確認對調</button>" : "";
+      const ctx = r.ok ? "<div class='why ctx'>"+ctxLine(bl.t, r.s.day, r.s.period)+"</div>" : "";
+      h += "<div class='slot "+(r.ok?"go":"stop")+"'><span class='light'></span>"
+         + "<div class='grow'><div class='when'>週"+DAYS[r.s.day-1]+" 第"+r.s.period+"節"+lian+"</div>"
+         + "<div class='why'>"+r.why+"</div>"+ctx+"</div>"+btn+"</div>";
+    });
+    h += "</div>";
+  });
+  if(others.length===0) h += "<div class='no-cand'>這班只有你一位任課老師（示範資料）</div>";
+  h += "</div>";
+  box.innerHTML = h;
+
+  box.querySelectorAll(".swapbtn").forEach(b=> b.addEventListener("click", ()=>{
+    doSwap(selected, at(b.dataset.t, +b.dataset.sd, +b.dataset.sp), b.dataset.t);
+  }));
+  box.querySelectorAll(".viewbtn").forEach(b=> b.addEventListener("click", ()=> openModal(b.dataset.t)));
+}
+
+/* ── 執行 / 復原 / 重置 ── */
+function doSwap(r1, r2, tName){
+  const step = swapLog.length;
+  const aTxt = "週"+DAYS[r1.day-1]+"第"+r1.period+"節", bTxt = "週"+DAYS[r2.day-1]+"第"+r2.period+"節";
+  const label = aTxt+" "+r1.cls+" ⇄ "+bTxt+" "+r2.cls+"（"+current+" ↔ "+tName+"）";
+  const info = {you:current, other:tName,
+    a:{txt:aTxt, cls:r1.cls, subj:r1.subject}, b:{txt:bTxt, cls:r2.cls, subj:r2.subject}};
+  const d=r1.day,p=r1.period; r1.day=r2.day; r1.period=r2.period; r2.day=d; r2.period=p;
+  r1._step=step; r2._step=step;
+  swapLog.push({r1,r2,label,step,info});
+  selected=null; renderGrid(); renderRadar();
+}
+function undoLast(){
+  const e = swapLog.pop(); if(!e) return;
+  const d=e.r1.day,p=e.r1.period; e.r1.day=e.r2.day; e.r1.period=e.r2.period; e.r2.day=d; e.r2.period=p;
+  delete e.r1._step; delete e.r2._step;
+  selected=null; renderGrid(); renderRadar();
+}
+function resetAll(){
+  WORK = ORIGINAL.map(r=>({...r})); workById={}; WORK.forEach(r=> workById[r.id]=r);
+  swapLog=[]; selected=null; renderGrid(); renderRadar();
+}
+
+/* ── 試調紀錄列 ── */
+function renderLog(){
+  const el = document.getElementById("logbar");
+  if(swapLog.length===0){ el.innerHTML=""; el.style.display="none"; return; }
+  el.style.display="";
+  let h = "<div class='logtop'><b>期初試調</b> · 已對調 "+swapLog.length+" 次"
+        + "<span class='logbtns'><button id='undoBtn'>復原上一步</button>"
+        + "<button id='resetBtn'>重置課表</button></span></div><ol class='loglist'>";
+  swapLog.forEach(e=> h += "<li><span class='stepdot-inline' style='background:"+stepColor(e.step)+"'></span>"+e.label+"</li>");
+  h += "</ol>";
+  // 分享：依對方老師分組
+  const others = [...new Set(swapLog.map(e=>e.info.other))];
+  h += "<div class='share'><div class='share-h'>排好了？切到對方老師的課表截圖，搭配訊息一起傳給他：</div><div class='share-btns'>";
+  others.forEach(o=> h += "<button class='pngbtn shareBtn' data-o='"+o+"'>複製給 "+o+" 的訊息</button>");
+  h += "</div><div id='shareOut'></div></div>";
+  el.innerHTML = h;
+  document.getElementById("undoBtn").addEventListener("click", undoLast);
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+  el.querySelectorAll(".shareBtn").forEach(b=> b.addEventListener("click", ()=> showShare(b.dataset.o)));
+}
+
+/* 產生給某位對方老師的訊息（含所有與他相關的對調路徑）*/
+function buildMessage(other){
+  const mine = swapLog.filter(e=>e.info.other===other);
+  let lines = other+"老師您好～我想跟您調課 🙌\n";
+  mine.forEach(e=>{
+    const i=e.info;
+    lines += "・我的「"+i.a.txt+" "+i.a.cls+" "+i.a.subj+"」 ↔ 您的「"+i.b.txt+" "+i.b.cls+" "+i.b.subj+"」\n";
+  });
+  lines += "（調整後的您課表如附圖，麻煩您看看方便嗎～謝謝！）";
+  return lines;
+}
+function showShare(other){
+  const msg = buildMessage(other);
+  const out = document.getElementById("shareOut");
+  out.innerHTML = "<div class='share-note'>提醒：先把上方老師下拉切到「"+other+"」，截他<b>調整後</b>的課表，連同這段文字傳給他。</div>"
+    + "<textarea id='shareTa' readonly rows='"+(msg.split('\n').length+1)+"'>"+msg+"</textarea>"
+    + "<button class='pngbtn' id='copyBtn'>複製文字</button><span id='copyMsg' class='copymsg'></span>";
+  const ta=document.getElementById("shareTa");
+  ta.addEventListener("focus", ()=> ta.select());
+  document.getElementById("copyBtn").addEventListener("click", ()=>{
+    ta.select();
+    const done = ()=>{ document.getElementById("copyMsg").textContent="已複製 ✓"; };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(msg).then(done).catch(()=>{ try{document.execCommand("copy");done();}catch(_){ document.getElementById("copyMsg").textContent="請手動選取複製"; } });
+    } else { try{document.execCommand("copy");done();}catch(_){ document.getElementById("copyMsg").textContent="請手動選取複製"; } }
+  });
+}
+
+/* ── Modal：看對方課表 ── */
+function openModal(teacher){
+  const hl = {};
+  if(selected){
+    // 對方在本班可對調到的目標格（你會去上的）標綠、你原本這格（他會來上）標琥珀
+    hl[selected.day+"-"+selected.period] = "come";
+    WORK.filter(r=>r.teacher===teacher && r.cls===selected.cls && !r.fixed)
+        .forEach(s=> hl[s.day+"-"+s.period] = hl[s.day+"-"+s.period]||"take");
+  }
+  const mount = document.getElementById("modalMount");
+  mount.innerHTML =
+    "<div class='modal-back' id='mback'><div class='modal'>"
+    + "<div class='modal-h'><span class='mt'>"+teacher+" 課表</span>"
+    + "<button class='mx' id='mx' aria-label='關閉'>✕</button></div>"
+    + "<div class='modal-body'>"
+    + "<div class='modal-legend'><span><i style='background:var(--go-bg);border:2px solid var(--go)'></i>你要去上的課</span>"
+    + "<span><i style='background:var(--you-bg);border:2px dashed var(--you)'></i>他來上你這節</span></div>"
+    + gridHTML(teacher, {highlight:hl})
+    + "</div></div></div>";
+  document.getElementById("mx").addEventListener("click", closeModal);
+  document.getElementById("mback").addEventListener("click", e=>{ if(e.target.id==="mback") closeModal(); });
+}
+function closeModal(){ document.getElementById("modalMount").innerHTML=""; }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
+
+/* ── 此刻課堂 ── */
+function nowSlot(){
+  const now=new Date(); let d=now.getDay();
+  if(d<1||d>5) return {d:1,p:1,live:false};
+  const mins=now.getHours()*60+now.getMinutes();
+  for(const P of PERIODS){
+    const [ah,am]=P.a.split(":").map(Number), [bh,bm]=P.b.split(":").map(Number);
+    if(mins>=ah*60+am && mins<=bh*60+bm) return {d,p:P.p,live:true};
+  }
+  return {d,p:1,live:false};
+}
+let nowSel = nowSlot();
+function renderNow(){
+  const box=document.getElementById("paneNow");
+  let h="<div class='now-ctl'><label style='align-self:center;font-size:12px;color:var(--soft);font-weight:600'>時間</label>";
+  h+="<select id='nd'>"+DAYS.map((x,i)=>"<option value='"+(i+1)+"'"+(nowSel.d===i+1?" selected":"")+">週"+x+"</option>").join("")+"</select>";
+  h+="<select id='np'>"+PERIODS.map(P=>"<option value='"+P.p+"'"+(nowSel.p===P.p?" selected":"")+">第"+P.p+"節 "+P.a+"</option>").join("")+"</select>";
+  h+=(nowSel.live?"<span class='hint' style='margin:0;align-self:center'>· 現在這節</span>":"")+"</div>";
+  h+="<table class='now-tbl'><tbody>";
+  classes.forEach(c=>{
+    const r=classAt(c,nowSel.d,nowSel.p);
+    h+="<tr><td class='c'>"+c+"</td>"+(r?"<td class='who'><b>"+r.teacher+"</b> · "+r.subject+"</td>":"<td class='who free'>—（空堂／無排課）</td>")+"</tr>";
+  });
+  h+="</tbody></table>";
+  h+="<div class='look'><label style='font-size:12px;color:var(--soft);font-weight:600'>查老師此刻</label> ";
+  h+="<select id='nl'><option value=''>—</option>"+teachers.map(t=>"<option>"+t+"</option>").join("")+"</select><div id='nlr'></div></div>";
+  box.innerHTML=h;
+  document.getElementById("nd").addEventListener("change",e=>{nowSel.d=+e.target.value;nowSel.live=false;renderNow();});
+  document.getElementById("np").addEventListener("change",e=>{nowSel.p=+e.target.value;nowSel.live=false;renderNow();});
+  document.getElementById("nl").addEventListener("change",e=>{
+    const t=e.target.value, out=document.getElementById("nlr");
+    if(!t){out.innerHTML="";return;}
+    const r=at(t,nowSel.d,nowSel.p);
+    out.innerHTML = r ? "<div class='r busy'>有課："+r.cls+" "+r.subject+"</div>" : "<div class='r free'>空堂</div>";
+  });
+}
+
+/* ── 分頁 ── */
+function showTab(which){
+  const rOn=which==="radar";
+  document.getElementById("tabRadar").classList.toggle("on",rOn);
+  document.getElementById("tabNow").classList.toggle("on",!rOn);
+  document.getElementById("paneRadar").style.display=rOn?"":"none";
+  document.getElementById("paneNow").style.display=rOn?"none":"";
+  if(!rOn) renderNow();
+}
+document.getElementById("tabRadar").addEventListener("click",()=>showTab("radar"));
+document.getElementById("tabNow").addEventListener("click",()=>showTab("now"));
+
+/* ── 匯入 / 換課表資料 ── */
+function validateData(arr){
+  if(!Array.isArray(arr) || arr.length===0) return "資料要是非空的陣列。";
+  for(const r of arr){
+    if(r.cls==null||r.day==null||r.period==null||!r.subject||!r.teacher)
+      return "每筆需含 cls、day、period、subject、teacher。有一筆缺欄位。";
+    if(+r.day<1||+r.day>5||+r.period<1||+r.period>8)
+      return "day 需 1–5、period 需 1–8。";
+  }
+  return null;
+}
+function tryLoad(text){
+  let arr; try{ arr=JSON.parse(text); }catch(e){ return "JSON 格式錯誤："+e.message; }
+  const err=validateData(arr); if(err) return err;
+  loadData(arr); return null;
+}
+function openImport(){
+  const mount=document.getElementById("modalMount");
+  mount.innerHTML =
+    "<div class='modal-back' id='mback'><div class='modal'>"
+    + "<div class='modal-h'><span class='mt'>匯入課表資料</span><button class='mx' id='mx'>✕</button></div>"
+    + "<div class='modal-body'>"
+    + "<div class='share-note'>貼上洗好的 JSON（每筆 cls／day／period／subject／teacher，固定節次加 fixed:true），或選擇 .json 檔。載入後會以新資料重跑，試調紀錄會清空。</div>"
+    + "<textarea class='imp-ta' id='impTa' placeholder='[ {\"cls\":\"501\",\"day\":1,\"period\":1,\"subject\":\"英語文\",\"teacher\":\"林安\"}, ... ]'></textarea>"
+    + "<div class='imp-err' id='impErr'></div>"
+    + "<div class='imp-row'><input type='file' id='impFile' accept='.json,application/json'>"
+    + "<button class='btn-primary' id='impGo'>載入</button></div>"
+    + "</div></div></div>";
+  document.getElementById("mx").addEventListener("click", closeModal);
+  document.getElementById("mback").addEventListener("click", e=>{ if(e.target.id==="mback") closeModal(); });
+  document.getElementById("impFile").addEventListener("change", e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const fr=new FileReader(); fr.onload=()=>{ document.getElementById("impTa").value=fr.result; }; fr.readAsText(f);
+  });
+  document.getElementById("impGo").addEventListener("click", ()=>{
+    const err=tryLoad(document.getElementById("impTa").value.trim());
+    if(err){ document.getElementById("impErr").textContent=err; } else { closeModal(); }
+  });
+}
+function showEmptyState(){
+  document.getElementById("appMain").style.display="none";
+  const es=document.getElementById("emptyState"); es.style.display="";
+  es.innerHTML = "<div class='es-t'>還沒有課表資料</div>"
+    + "<div class='es-b'>把班級課表洗成 JSON 後，點下面匯入就能開始用。<br>格式：每筆一格課 cls／day／period／subject／teacher，固定節次加 fixed:true。</div>"
+    + "<button class='btn-primary' id='esImport'>貼上 / 上傳 JSON</button>";
+  document.getElementById("esImport").addEventListener("click", openImport);
+}
+document.getElementById("dataBtn").addEventListener("click", openImport);
+
+/* ── 啟動：有內建資料就跑，沒有就顯示匯入畫面 ── */
+if (Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
+  loadData(window.SCHEDULE);
+} else {
+  showEmptyState();
+}
+</script>
+</body>
+</html>

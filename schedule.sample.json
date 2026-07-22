@@ -1,0 +1,418 @@
+[
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 1,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 2,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 3,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 4,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 5,
+    "subject": "生物",
+    "teacher": "蔡文"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 6,
+    "subject": "音樂",
+    "teacher": "楊琪"
+  },
+  {
+    "cls": "501",
+    "day": 1,
+    "period": 7,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 1,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 2,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 3,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 4,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 5,
+    "subject": "體育",
+    "teacher": "周叡"
+  },
+  {
+    "cls": "501",
+    "day": 2,
+    "period": 6,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 1,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 2,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 3,
+    "subject": "生物",
+    "teacher": "蔡文"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 4,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 5,
+    "subject": "音樂",
+    "teacher": "楊琪"
+  },
+  {
+    "cls": "501",
+    "day": 3,
+    "period": 7,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "501",
+    "day": 4,
+    "period": 1,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "501",
+    "day": 4,
+    "period": 2,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "501",
+    "day": 4,
+    "period": 3,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "501",
+    "day": 4,
+    "period": 4,
+    "subject": "體育",
+    "teacher": "周叡"
+  },
+  {
+    "cls": "501",
+    "day": 4,
+    "period": 5,
+    "subject": "自主學習",
+    "teacher": "林安",
+    "flex": true
+  },
+  {
+    "cls": "501",
+    "day": 5,
+    "period": 3,
+    "subject": "生物",
+    "teacher": "蔡文"
+  },
+  {
+    "cls": "501",
+    "day": 5,
+    "period": 5,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "501",
+    "day": 5,
+    "period": 6,
+    "subject": "班週會",
+    "teacher": "林安",
+    "fixed": true
+  },
+  {
+    "cls": "504",
+    "day": 1,
+    "period": 1,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "504",
+    "day": 1,
+    "period": 2,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "504",
+    "day": 1,
+    "period": 3,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "504",
+    "day": 1,
+    "period": 4,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "504",
+    "day": 1,
+    "period": 5,
+    "subject": "音樂",
+    "teacher": "楊琪"
+  },
+  {
+    "cls": "504",
+    "day": 2,
+    "period": 1,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "504",
+    "day": 2,
+    "period": 2,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "504",
+    "day": 2,
+    "period": 3,
+    "subject": "生物",
+    "teacher": "蔡文"
+  },
+  {
+    "cls": "504",
+    "day": 2,
+    "period": 4,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "504",
+    "day": 3,
+    "period": 2,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "504",
+    "day": 3,
+    "period": 4,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "504",
+    "day": 4,
+    "period": 3,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "504",
+    "day": 4,
+    "period": 4,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "504",
+    "day": 5,
+    "period": 3,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "504",
+    "day": 5,
+    "period": 4,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "506",
+    "day": 1,
+    "period": 2,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "506",
+    "day": 1,
+    "period": 3,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "506",
+    "day": 1,
+    "period": 5,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "506",
+    "day": 2,
+    "period": 1,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "506",
+    "day": 2,
+    "period": 2,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "506",
+    "day": 2,
+    "period": 5,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "506",
+    "day": 3,
+    "period": 1,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "506",
+    "day": 3,
+    "period": 2,
+    "subject": "生物",
+    "teacher": "蔡文"
+  },
+  {
+    "cls": "506",
+    "day": 3,
+    "period": 3,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "506",
+    "day": 4,
+    "period": 1,
+    "subject": "英語文",
+    "teacher": "林安"
+  },
+  {
+    "cls": "506",
+    "day": 4,
+    "period": 2,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "601",
+    "day": 5,
+    "period": 5,
+    "subject": "數學",
+    "teacher": "陳寬"
+  },
+  {
+    "cls": "601",
+    "day": 4,
+    "period": 5,
+    "subject": "國文",
+    "teacher": "黃立"
+  },
+  {
+    "cls": "601",
+    "day": 1,
+    "period": 6,
+    "subject": "社團活動",
+    "teacher": "周叡",
+    "fixed": true
+  },
+  {
+    "cls": "610",
+    "day": 5,
+    "period": 5,
+    "subject": "歷史",
+    "teacher": "張維"
+  },
+  {
+    "cls": "610",
+    "day": 2,
+    "period": 3,
+    "subject": "地理",
+    "teacher": "吳庭"
+  },
+  {
+    "cls": "610",
+    "day": 3,
+    "period": 3,
+    "subject": "音樂",
+    "teacher": "楊琪"
+  }
+]
