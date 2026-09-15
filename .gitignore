@@ -1,0 +1,7 @@
+# 真實課表／原始 PDF：含真名，絕不進 repo（見 README〈資料隱私〉）
+private/
+*課表.json
+schedule.json
+
+# Office 暫存檔
+~$*
