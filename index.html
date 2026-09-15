@@ -60,6 +60,15 @@
   .cell.fixed{background:var(--fixed-bg); cursor:pointer;}
   .cell.fixed .sub{color:var(--fixed);}
   .cell.sel{outline:3px solid var(--you); outline-offset:-3px;}
+  /* 單/雙週輪替、兩週教不同班：同一格疊兩筆，各自可點 */
+  .cell.klass.wksplit{padding:0; cursor:default; display:flex; flex-direction:column;}
+  .wkrow{flex:1 1 50%; padding:2px 3px; cursor:pointer; position:relative; display:flex; flex-direction:column; justify-content:center;}
+  .wkrow:not(:last-child){border-bottom:1px dashed var(--line2);}
+  .wkrow:hover{background:rgba(46,82,102,.08);}
+  .wkrow.sel{outline:2px solid var(--you); outline-offset:-2px; background:var(--you-bg);}
+  .wkrow.hl-take{outline:2px solid var(--go); outline-offset:-2px;}
+  .wkrow .sub{font-weight:700; font-size:11.5px; line-height:1.1;}
+  .wkrow .cls{font-size:9.5px; color:var(--soft); margin-top:1px;}
   .cell .tag{position:absolute; top:2px; right:3px; font-size:9px; font-weight:700;
     color:var(--you); background:#fff; border:1px solid var(--you-line); border-radius:4px; padding:0 3px;}
   .lunch td{background:#E7EBF0; height:8px; padding:0; border-left:0; border-right:0;}
@@ -88,6 +97,8 @@
   .badge{display:inline-block; font-size:10.5px; font-weight:700; border-radius:5px;
     padding:1px 5px; margin-left:6px; vertical-align:1px;}
   .badge.lian{background:#FFF3D6; color:#9A6A00; border:1px solid #EBCB7D;}
+  .badge.week{background:#F1EDFB; color:#6E56CF; border:1px solid #C9B8F0;}
+  .wk{font-size:10px; font-weight:800; color:#6E56CF; margin-left:4px;}
   .grow{flex:1 1 auto; min-width:0;}
   .no-cand{padding:16px 14px; color:var(--soft); font-size:13px;}
   .viewbtn{margin-left:auto; font-family:var(--font); font-size:12px; font-weight:700; cursor:pointer;
@@ -188,6 +199,12 @@
   .legend span{display:inline-flex; align-items:center; gap:5px;}
   .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
   .sw-you{width:11px;height:11px;border-radius:3px;background:var(--you-bg);border:1px solid var(--you-line);display:inline-block;}
+  /* 班級／老師一多時：長清單改為卡片內自捲，右欄高度固定，左側課表在桌機黏住不被推走 */
+  @media (min-width:881px){
+    .cols > .card:first-child{ position:sticky; top:16px; }
+    .radar-body{ max-height:calc(100vh - 210px); min-height:200px; overflow:auto; }
+    .now-scroll{ max-height:calc(100vh - 300px); min-height:180px; overflow:auto; }
+  }
 </style>
 </head>
 <body>
@@ -196,7 +213,8 @@
     <div class="brand">調課雷達 <small id="verTag">DEMO</small></div>
     <button id="dataBtn" class="pngbtn" style="margin-left:auto">換 / 匯入課表資料</button>
   </div>
-  <div class="hint">選一位老師看課表 → 點你想搬走的那一節 → 右側列出同班任課老師誰能跟你對調。切到「此刻課堂」可查某老師現在有沒有課、在哪班。</div>
+  <div class="hint">選一位老師看課表 → 點你想搬走的那一節 → 右側列出同班任課老師誰能跟你對調。切到「此刻課堂」可查某老師現在有沒有課、在哪班。
+    <span id="dataSrcHint"></span></div>
 
   <div class="bar">
     <label for="tpick">老師</label>
@@ -204,6 +222,7 @@
     <span id="tsum" class="hint" style="margin:0"></span>
   </div>
 
+  <div id="notice" style="display:none"></div>
   <div id="logbar" style="display:none"></div>
 
   <div id="appMain">
@@ -217,6 +236,7 @@
           <span><i class="dot" style="background:var(--stop)"></i> 換不了</span>
           <span><i class="dot" style="background:var(--fixed)"></i> 固定節次</span>
           <span><i class="badge lian" style="margin:0">連堂</i> 前後相接、當心拆散</span>
+          <span><b class="wk" style="margin:0">單/雙週</b> 隔週輪替課，對調前先確認是哪一週</span>
         </div>
       </div>
     </div>
@@ -239,10 +259,13 @@
 <script>
 /* ── 資料格式（每筆 = 一格課）──────────────────────────────
    { cls:班級, day:1~5(一~五), period:1~8, subject:科目, teacher:老師,
-     fixed:true  → 全校固定節次(班週會/社團/朝週會)，雷達自動排除、不可對調
-     flex:true   → 彈性學習/自主學習，可換與否你自己判斷，雷達會標示提醒 }
-   下學期真課表出來，只要把這個陣列整包換掉，程式完全不用動。
-   目前是捏出來的示範資料（全部化名），拿來試流程用。
+     fixed:true  → 全校固定節次(班週會/社團/朝週會，或同格多位老師分組上課的選修課)，
+                   雷達自動排除、不可對調，但雙方課表都看得到
+     flex:true   → 彈性學習/自主學習，可換與否你自己判斷，雷達會標示提醒
+     week:"單"/"雙" → 隔週輪替課（同一格另有一位老師輪值另一週），雷達會標示提醒，
+                      但工具本身沒有「週別」概念，能不能換仍需人工確認是哪一週 }
+   真課表出來，只要把這個陣列整包換掉，程式完全不用動。
+   目前是捏出來的示範資料（全部化名），拿來示範功能用，不是任何學校的真實課表。
 ──────────────────────────────────────────────────────────── */
 window.SCHEDULE = [
   // ===== 501（林安為導師，英語文任課）=====
@@ -259,6 +282,8 @@ window.SCHEDULE = [
   {cls:"501",day:2,period:4,subject:"歷史",teacher:"張維"},
   {cls:"501",day:2,period:5,subject:"體育",teacher:"周叡"},
   {cls:"501",day:2,period:6,subject:"地理",teacher:"吳庭"},
+  {cls:"501",day:2,period:8,subject:"英語輔導",teacher:"林安",week:"單"},
+  {cls:"501",day:2,period:8,subject:"英語輔導",teacher:"周叡",week:"雙"},
   {cls:"501",day:3,period:1,subject:"數學",teacher:"陳寬"},
   {cls:"501",day:3,period:2,subject:"國文",teacher:"黃立"},
   {cls:"501",day:3,period:3,subject:"生物",teacher:"蔡文"},
@@ -273,6 +298,8 @@ window.SCHEDULE = [
   {cls:"501",day:5,period:3,subject:"生物",teacher:"蔡文"},
   {cls:"501",day:5,period:5,subject:"英語文",teacher:"林安"},
   {cls:"501",day:5,period:6,subject:"班週會",teacher:"林安",fixed:true},
+  {cls:"501",day:5,period:8,subject:"英文輔導",teacher:"林安",week:"單"},
+  {cls:"501",day:5,period:8,subject:"英文輔導",teacher:"周叡",week:"雙"},
 
   // ===== 504（林安英語文任課）=====
   {cls:"504",day:1,period:1,subject:"英語文",teacher:"林安"},
@@ -284,6 +311,7 @@ window.SCHEDULE = [
   {cls:"504",day:2,period:2,subject:"地理",teacher:"吳庭"},
   {cls:"504",day:2,period:3,subject:"生物",teacher:"蔡文"},
   {cls:"504",day:2,period:4,subject:"數學",teacher:"陳寬"},
+  {cls:"504",day:3,period:8,subject:"英語輔導",teacher:"林安"},
   {cls:"504",day:3,period:2,subject:"數學",teacher:"陳寬"},
   {cls:"504",day:3,period:4,subject:"國文",teacher:"黃立"},
   {cls:"504",day:4,period:3,subject:"英語文",teacher:"林安"},
@@ -303,6 +331,10 @@ window.SCHEDULE = [
   {cls:"506",day:3,period:3,subject:"歷史",teacher:"張維"},
   {cls:"506",day:4,period:1,subject:"英語文",teacher:"林安"},
   {cls:"506",day:4,period:2,subject:"國文",teacher:"黃立"},
+  {cls:"506",day:5,period:6,subject:"多元選修",teacher:"蔡文",fixed:true},
+  {cls:"506",day:5,period:6,subject:"多元選修",teacher:"吳庭",fixed:true},
+  {cls:"506",day:5,period:8,subject:"英文輔導",teacher:"林安",week:"雙"},
+  {cls:"506",day:5,period:8,subject:"英文輔導",teacher:"周叡",week:"單"},
 
   // ===== 601 / 610（你不教，但同事在這裡有課 → 讓「空堂」判斷變真實）=====
   {cls:"601",day:5,period:5,subject:"數學",teacher:"陳寬"},   // 陳寬 週五第5節被卡住
@@ -313,8 +345,8 @@ window.SCHEDULE = [
   {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
 ];
 /* ── 版本 ── */
-const VERSION = "v0.9.0";
-document.getElementById("verTag").textContent = VERSION + " · DEMO";
+const VERSION = "v1.1.0";
+document.getElementById("verTag").textContent = VERSION + " · DEMO 示範資料（化名）";
 document.getElementById("footer").innerHTML =
   "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
 
@@ -332,23 +364,85 @@ const PERIODS = [
 const PALETTE = ['#3B82C4','#8B5CF6','#D64F8F','#149C93','#B4761C','#6B8E23','#4A5AB0','#B0413E'];
 const stepColor = i => PALETTE[i % PALETTE.length];
 
+// 教師欄正規化：null/空白 → ""（缺教師）；其餘去頭尾空白
+const normT = v => (v==null ? "" : String(v)).trim();
+
 function loadData(arr){
-  ORIGINAL = arr.map((r,i)=>({cls:String(r.cls), day:+r.day, period:+r.period,
-    subject:r.subject, teacher:r.teacher, ...(r.fixed?{fixed:true}:{}), id:i}));
+  ORIGINAL = arr.map((r,i)=>{
+    const t = normT(r.teacher);
+    return {cls:String(r.cls), day:+r.day, period:+r.period,
+      subject:r.subject, teacher:t, ...(r.fixed?{fixed:true}:{}),
+      ...(r.flex?{flex:true}:{}), ...(r.week?{week:r.week}:{}),
+      ...(t===""?{_need:true}:{}), id:i};
+  });
+  /* 同一 cls+day+period 出現多筆，依序判斷（順序不可調換）：
+     1. 任一筆有 week → 隔週輪替：兩位老師各上一週，可對調，課表上疊格顯示
+     2. 同科目       → 共同授課(_co)：不列入對調
+     3. 不同科目     → 疑似重格(_dup)：洗檔可能節次讀錯，不列入對調並提醒 */
+  const cellGroup = {};
+  ORIGINAL.forEach(r=>{ const k=r.cls+"|"+r.day+"|"+r.period; (cellGroup[k]=cellGroup[k]||[]).push(r); });
+  Object.values(cellGroup).forEach(g=>{
+    if(g.length < 2) return;
+    if(g.some(r=>r.week)) return;                       // 隔週輪替，照常可對調
+    const oneSubject = new Set(g.map(r=>r.subject)).size === 1;
+    g.forEach(r=> oneSubject ? (r._co=true) : (r._dup=true));
+  });
+
   WORK = ORIGINAL.map(r=>({...r}));
   workById = {}; WORK.forEach(r=> workById[r.id]=r);
-  teachers = [...new Set(ORIGINAL.map(r=>r.teacher))].sort((a,b)=>String(a).localeCompare(b,"zh-Hant"));
+  // 老師清單排除缺教師("")與固定活動佔位("—")
+  teachers = [...new Set(ORIGINAL.map(r=>r.teacher))]
+    .filter(t=> t!=="" && t!=="—")
+    .sort((a,b)=>String(a).localeCompare(b,"zh-Hant"));
   classes  = [...new Set(ORIGINAL.map(r=>r.cls))].sort();
   current = teachers.includes("林安") ? "林安" : teachers[0];
   selected=null; swapLog=[]; nowSel=nowSlot();
   document.getElementById("appMain").style.display="";
   document.getElementById("emptyState").style.display="none";
-  buildTeacherPick(); renderGrid(); renderRadar();
+  renderNotice(); buildTeacherPick(); renderGrid(); renderRadar();
+}
+
+// 掃出需要老師知道、但不阻擋載入的狀況
+function auditData(){
+  const need = ORIGINAL.filter(r=>r._need).length;
+  const coCells   = new Set(ORIGINAL.filter(r=>r._co ).map(r=>r.cls+"|"+r.day+"|"+r.period)).size;
+  const clashCell = new Set(ORIGINAL.filter(r=>r._dup).map(r=>r.cls+"|"+r.day+"|"+r.period)).size;
+  /* 同一位老師同一節出現兩筆 = 撞課。排除本來就合法的情形：
+     隔週輪替(week)、全校固定節次、缺教師("")與固定活動佔位("—")。 */
+  const byTP = {};
+  ORIGINAL.forEach(r=>{
+    if(!r.teacher || r.teacher==="—" || r.week || r.fixed) return;
+    const k=r.teacher+"|"+r.day+"|"+r.period; byTP[k]=(byTP[k]||0)+1;
+  });
+  const clashT = Object.values(byTP).filter(n=>n>1).length;
+  return {need, coCells, clashCell, clashT};
+}
+function renderNotice(){
+  const el = document.getElementById("notice");
+  const a = auditData();
+  const parts = [];
+  if(a.need)    parts.push("缺教師 "+a.need+" 筆");
+  if(a.coCells) parts.push("共同授課 "+a.coCells+" 格");
+  const warns = [];
+  if(a.clashCell) warns.push("疑似重格 "+a.clashCell+" 處");
+  if(a.clashT)    warns.push("疑似撞課 "+a.clashT+" 處");
+  if(!parts.length && !warns.length){ el.style.display="none"; el.innerHTML=""; return; }
+  let h = "";
+  if(parts.length) h += "<span>"+parts.join("、")+"——<b>皆不列入對調</b>，請自行確認。</span>";
+  if(warns.length) h += "<span style='color:#B4413E;margin-left:8px'>⚠ "+warns.join("、")+"，建議回頭檢查洗檔。</span>";
+  el.innerHTML = h;
+  el.style.display="";
+  el.style.cssText = "display:block;margin:4px 0 2px;padding:8px 12px;border-radius:8px;"
+    + "background:#FFF7E6;border:1px solid #F0D08A;font-size:13px;line-height:1.5;color:#7A5A12";
 }
 
 const at = (t,d,p) => WORK.find(r=>r.teacher===t && r.day===d && r.period===p) || null;
+// 同一位老師在同一節可能有 2 筆（單/雙週輪替、兩週教不同班）── 要全部時用這個
+const atAll = (t,d,p) => WORK.filter(r=>r.teacher===t && r.day===d && r.period===p);
 const isFree = (t,d,p) => !at(t,d,p);
 const classAt = (c,d,p) => WORK.find(r=>r.cls===c && r.day===d && r.period===p) || null;
+// 同一班在同一節也可能有 2 筆（隔週輪替換老師、或同格多位老師分組上課）
+const classAtAll = (c,d,p) => WORK.filter(r=>r.cls===c && r.day===d && r.period===p);
 const teachersOf = c => [...new Set(WORK.filter(r=>r.cls===c).map(r=>r.teacher))];
 const scheduleOf = t => WORK.filter(r=>r.teacher===t);
 function lianAround(t,c,d,p){
@@ -393,19 +487,39 @@ function gridHTML(teacher, opts={}){
     if(P.p===5) h += "<tr class='lunch'><td colspan='6'></td></tr>";
     h += "<tr><td class='t-time'><b>"+P.p+"</b>"+P.a+"<br>│<br>"+P.b+"</td>";
     for(let d=1; d<=5; d++){
-      const key=d+"-"+P.p, mark=hl[key];
+      const key=d+"-"+P.p, markInfo=hl[key];
+      const mark = markInfo && (typeof markInfo==="object" ? markInfo.mark : markInfo);
+      const markCls = markInfo && typeof markInfo==="object" ? markInfo.cls : null;
       const hlClass = mark==="take" ? " hl-take" : mark==="come" ? " hl-come" : "";
-      const r = at(teacher,d,P.p);
-      if(r){
+      const rs = atAll(teacher,d,P.p);
+      if(rs.length > 1){
+        // 同一位老師同一節有多筆（單/雙週輪替、兩週教不同班）：疊起來各自呈現、各自可點
+        let inner = "";
+        rs.forEach(r=>{
+          const moved = (r._step!=null);
+          const sc = moved ? " style=\"--sc:"+stepColor(r._step)+"\"" : "";
+          const dot = moved ? "<span class='stepdot'></span>" : "";
+          const isSel = selDP && selDP.id===r.id ? " sel":"";
+          const rowHl = (mark==="take" && (markCls==null||markCls===r.cls)) ? " hl-take" : "";
+          const wk = r.week ? " <b class='wk'>"+r.week+"週</b>" : "";
+          inner += "<div class='wkrow"+isSel+rowHl+"'"+sc+" data-id='"+r.id+"'>"
+                 + dot + "<div class='sub'>"+r.subject+"</div><div class='cls'>"+r.cls+wk+"</div></div>";
+        });
+        h += "<td class='cell klass wksplit' data-d='"+d+"' data-p='"+P.p+"'>"+inner+"</td>";
+      } else if(rs.length === 1){
+        const r = rs[0];
         const base = r.fixed ? "fixed" : "klass";
         const moved = (r._step!=null);
         const sc = moved ? " style=\"--sc:"+stepColor(r._step)+"\"" : "";
         const dot = moved ? "<span class='stepdot'></span>" : "";
         const sel = selDP && selDP.d===d && selDP.p===P.p ? " sel":"";
         const lian = !r.fixed && lianAround(teacher,r.cls,d,P.p) ? "<span class='tag'>連堂</span>":"";
-        h += "<td class='cell "+base+(moved?" moved":"")+sel+hlClass+"'"+sc+" data-d='"+d+"' data-p='"+P.p+"'>"
-           + dot + lian + "<div class='sub'>"+r.subject+"</div>"
-           + (r.fixed?"":"<div class='cls'>"+r.cls+"</div>") + "</td>";
+        const co = r._co ? "<span class='tag'>共授</span>" : (r._dup ? "<span class='tag'>重格?</span>" : "");
+        const wk = r.week ? " <b class='wk'>"+r.week+"週</b>" : "";
+        const cellHl = (mark==="take"&&(markCls==null||markCls===r.cls)) ? " hl-take" : mark==="come" ? " hl-come" : "";
+        h += "<td class='cell "+base+(moved?" moved":"")+sel+cellHl+"'"+sc+" data-d='"+d+"' data-p='"+P.p+"'>"
+           + dot + lian + co + "<div class='sub'>"+r.subject+"</div>"
+           + (r.fixed?"":"<div class='cls'>"+r.cls+wk+"</div>") + "</td>";
       } else {
         const g = ghostFor(teacher,d,P.p);
         if(g){
@@ -433,10 +547,16 @@ function renderGrid(){
     "共 "+mine.length+" 節 · 任課班級 "+[...new Set(mine.map(r=>r.cls))].sort().join("、")
     + (adjusted ? " <span class='adjtag'>調整後 · 可截圖傳他</span>" : "");
   const g = document.getElementById("grid");
-  g.innerHTML = gridHTML(current, {selectedDP: selected?{d:selected.day,p:selected.period}:null});
-  g.querySelectorAll(".cell.klass, .cell.fixed").forEach(td=>{
+  g.innerHTML = gridHTML(current, {selectedDP: selected?{d:selected.day,p:selected.period,id:selected.id}:null});
+  g.querySelectorAll(".cell.klass:not(.wksplit), .cell.fixed").forEach(td=>{
     td.addEventListener("click", ()=>{
       selected = at(current, +td.dataset.d, +td.dataset.p);
+      showTab("radar"); renderGrid(); renderRadar();
+    });
+  });
+  g.querySelectorAll(".wkrow").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      selected = workById[+el.dataset.id];
       showTab("radar"); renderGrid(); renderRadar();
     });
   });
@@ -453,14 +573,21 @@ function renderRadar(){
   const sel = selected, dayTxt = "週"+DAYS[sel.day-1]+" 第"+sel.period+"節";
   let h = "<div class='radar-head'><div class='big'>"+dayTxt+" · "+sel.cls+" "+sel.subject+"</div>";
   if(sel.fixed){ box.innerHTML = h + "<div class='meta'>固定節次，不開放對調。</div></div>"; return; }
+  if(sel._co){ box.innerHTML = h + "<div class='meta'>這節是<b>共同授課</b>（同一節多位老師），不列入自動對調，請自行與協同老師確認。</div></div>"; return; }
+  if(sel._dup){ box.innerHTML = h + "<div class='meta'>這格<b>同班同節有多科</b>，疑似洗檔時節次讀錯撞格，請先回頭修正，暫不開放對調。</div></div>"; return; }
   const youLian = lianAround(current, sel.cls, sel.day, sel.period);
   h += "<div class='meta'>要把這節換給 "+sel.cls+" 的其他任課老師"
-     + (youLian ? " · <b>這節是連堂，換走會拆散</b>":"") + "</div></div><div class='radar-body'>";
+     + (youLian ? " · <b>這節是連堂，換走會拆散</b>":"")
+     + (sel.week ? " · <b>這節是「"+sel.week+"週」隔週輪替課，對調前請先確認是哪一週</b>":"")
+     + (sel.period===8 ? " · <b>第八節只能跟第八節對調</b>":"")
+     + "</div></div><div class='radar-body'>";
 
-  const others = teachersOf(sel.cls).filter(t=>t!==current);
+  const others = teachersOf(sel.cls).filter(t=>t!==current && t!=="" && t!=="—");
   const blocks = others.map(t=>{
-    const slots = WORK.filter(r=>r.teacher===t && r.cls===sel.cls && !r.fixed);
-    const rows = slots.map(s=>{
+    const slots = WORK.filter(r=>r.teacher===t && r.cls===sel.cls && !r.fixed && !r._co && !r._need && !r._dup);
+    // 第八節（輔導課）只能跟第八節對調，不跨到前七節
+    const cand = slots.filter(r => (r.period===8) === (sel.period===8));
+    const rows = cand.map(s=>{
       const youOk = isFree(current, s.day, s.period);
       const tOk   = isFree(t, sel.day, sel.period);
       const ok = youOk && tOk;
@@ -486,10 +613,11 @@ function renderRadar(){
     if(bl.rows.length===0) h += "<div class='no-cand'>在 "+sel.cls+" 沒有可對調的課</div>";
     bl.rows.forEach(r=>{
       const lian = r.lian ? "<span class='badge lian'>他這格也連堂</span>":"";
-      const btn = r.ok ? "<button class='swapbtn' data-t='"+bl.t+"' data-sd='"+r.s.day+"' data-sp='"+r.s.period+"'>確認對調</button>" : "";
+      const wkBadge = r.s.week ? "<span class='badge week'>他這格是「"+r.s.week+"週」課</span>":"";
+      const btn = r.ok ? "<button class='swapbtn' data-t='"+bl.t+"' data-id='"+r.s.id+"'>確認對調</button>" : "";
       const ctx = r.ok ? "<div class='why ctx'>"+ctxLine(bl.t, r.s.day, r.s.period)+"</div>" : "";
       h += "<div class='slot "+(r.ok?"go":"stop")+"'><span class='light'></span>"
-         + "<div class='grow'><div class='when'>週"+DAYS[r.s.day-1]+" 第"+r.s.period+"節"+lian+"</div>"
+         + "<div class='grow'><div class='when'>週"+DAYS[r.s.day-1]+" 第"+r.s.period+"節"+lian+wkBadge+"</div>"
          + "<div class='why'>"+r.why+"</div>"+ctx+"</div>"+btn+"</div>";
     });
     h += "</div>";
@@ -499,13 +627,14 @@ function renderRadar(){
   box.innerHTML = h;
 
   box.querySelectorAll(".swapbtn").forEach(b=> b.addEventListener("click", ()=>{
-    doSwap(selected, at(b.dataset.t, +b.dataset.sd, +b.dataset.sp), b.dataset.t);
+    doSwap(selected, workById[+b.dataset.id], b.dataset.t);
   }));
   box.querySelectorAll(".viewbtn").forEach(b=> b.addEventListener("click", ()=> openModal(b.dataset.t)));
 }
 
 /* ── 執行 / 復原 / 重置 ── */
 function doSwap(r1, r2, tName){
+  if(!r1||!r2||r1.fixed||r2.fixed||r1._co||r2._co||r1._need||r2._need||r1._dup||r2._dup) return; // 固定/共授/缺教師/重格不對調
   const step = swapLog.length;
   const aTxt = "週"+DAYS[r1.day-1]+"第"+r1.period+"節", bTxt = "週"+DAYS[r2.day-1]+"第"+r2.period+"節";
   const label = aTxt+" "+r1.cls+" ⇄ "+bTxt+" "+r2.cls+"（"+current+" ↔ "+tName+"）";
@@ -581,9 +710,9 @@ function openModal(teacher){
   const hl = {};
   if(selected){
     // 對方在本班可對調到的目標格（你會去上的）標綠、你原本這格（他會來上）標琥珀
-    hl[selected.day+"-"+selected.period] = "come";
-    WORK.filter(r=>r.teacher===teacher && r.cls===selected.cls && !r.fixed)
-        .forEach(s=> hl[s.day+"-"+s.period] = hl[s.day+"-"+s.period]||"take");
+    hl[selected.day+"-"+selected.period] = {mark:"come"};
+    WORK.filter(r=>r.teacher===teacher && r.cls===selected.cls && !r.fixed && !r._co && !r._need && !r._dup)
+        .forEach(s=>{ const k=s.day+"-"+s.period; if(!hl[k]) hl[k]={mark:"take", cls:s.cls}; });
   }
   const mount = document.getElementById("modalMount");
   mount.innerHTML =
@@ -618,23 +747,37 @@ function renderNow(){
   let h="<div class='now-ctl'><label style='align-self:center;font-size:12px;color:var(--soft);font-weight:600'>時間</label>";
   h+="<select id='nd'>"+DAYS.map((x,i)=>"<option value='"+(i+1)+"'"+(nowSel.d===i+1?" selected":"")+">週"+x+"</option>").join("")+"</select>";
   h+="<select id='np'>"+PERIODS.map(P=>"<option value='"+P.p+"'"+(nowSel.p===P.p?" selected":"")+">第"+P.p+"節 "+P.a+"</option>").join("")+"</select>";
-  h+=(nowSel.live?"<span class='hint' style='margin:0;align-self:center'>· 現在這節</span>":"")+"</div>";
-  h+="<table class='now-tbl'><tbody>";
+  h+="<button id='nowRefresh' class='pngbtn' type='button'>↻ 回到現在</button>";
+  h+=(nowSel.live?"<span class='hint' style='margin:0;align-self:center'>· 現在這節</span>"
+                 :"<span class='hint' style='margin:0;align-self:center'>· 已離開現在時間，點「回到現在」可對齊</span>")+"</div>";
+  h+="<div class='now-scroll'><table class='now-tbl'><tbody>";
   classes.forEach(c=>{
-    const r=classAt(c,nowSel.d,nowSel.p);
-    h+="<tr><td class='c'>"+c+"</td>"+(r?"<td class='who'><b>"+r.teacher+"</b> · "+r.subject+"</td>":"<td class='who free'>—（空堂／無排課）</td>")+"</tr>";
+    const rs=classAtAll(c,nowSel.d,nowSel.p);
+    let cell;
+    if(rs.length===0){ cell="<td class='who free'>—（空堂／無排課）</td>"; }
+    else{
+      const who = rs.map(r=> "<b>"+(r.teacher||"（缺教師）")+"</b>"
+                 + (r.week?"<span class='wk'>"+r.week+"週</span>":"")).join("／");
+      const subj = [...new Set(rs.map(r=>r.subject))].join("／");
+      cell="<td class='who'>"+who+" · "+subj+"</td>";
+    }
+    h+="<tr><td class='c'>"+c+"</td>"+cell+"</tr>";
   });
-  h+="</tbody></table>";
+  h+="</tbody></table></div>";
   h+="<div class='look'><label style='font-size:12px;color:var(--soft);font-weight:600'>查老師此刻</label> ";
   h+="<select id='nl'><option value=''>—</option>"+teachers.map(t=>"<option>"+t+"</option>").join("")+"</select><div id='nlr'></div></div>";
   box.innerHTML=h;
   document.getElementById("nd").addEventListener("change",e=>{nowSel.d=+e.target.value;nowSel.live=false;renderNow();});
   document.getElementById("np").addEventListener("change",e=>{nowSel.p=+e.target.value;nowSel.live=false;renderNow();});
+  document.getElementById("nowRefresh").addEventListener("click",()=>{ nowSel=nowSlot(); renderNow(); });
   document.getElementById("nl").addEventListener("change",e=>{
     const t=e.target.value, out=document.getElementById("nlr");
     if(!t){out.innerHTML="";return;}
-    const r=at(t,nowSel.d,nowSel.p);
-    out.innerHTML = r ? "<div class='r busy'>有課："+r.cls+" "+r.subject+"</div>" : "<div class='r free'>空堂</div>";
+    const rs=atAll(t,nowSel.d,nowSel.p);
+    if(rs.length===0){ out.innerHTML="<div class='r free'>空堂</div>"; return; }
+    if(rs.length===1){ out.innerHTML="<div class='r busy'>有課："+rs[0].cls+" "+rs[0].subject+"</div>"; return; }
+    out.innerHTML = "<div class='r busy'>隔週輪替，視單/雙週而定："
+      + rs.map(r=>r.cls+"（"+(r.week||"?")+"週·"+r.subject+"）").join("／") + "</div>";
   });
 }
 
@@ -650,21 +793,58 @@ function showTab(which){
 document.getElementById("tabRadar").addEventListener("click",()=>showTab("radar"));
 document.getElementById("tabNow").addEventListener("click",()=>showTab("now"));
 
+/* 此刻課堂：跟著「現在」自動走，不用手動重整或重新點開。
+   每 20 秒檢查一次，若使用者還停在「現在這節」(nowSel.live) 且已經跨到下一節/隔天，
+   就自動更新；使用者若手動切換過時間(nowSel.live=false)，就不打擾，只留「回到現在」按鈕。 */
+setInterval(()=>{
+  if(!nowSel.live) return;
+  const fresh = nowSlot();
+  if(fresh.d!==nowSel.d || fresh.p!==nowSel.p || fresh.live!==nowSel.live){
+    nowSel = fresh;
+    if(document.getElementById("tabNow").classList.contains("on")) renderNow();
+  }
+}, 20000);
+
+/* ── 本機記憶（只存在使用者自己這台裝置／瀏覽器，不會上傳、不會被別人看到）── */
+const LS_KEY = "tiaoke_schedule_v1";
+function saveLocal(arr){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }catch(e){ /* 私密瀏覽等情境存不了就算了，不影響當下使用 */ }
+}
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return null;
+    const arr = JSON.parse(raw);
+    return (Array.isArray(arr) && arr.length) ? arr : null;
+  }catch(e){ return null; }
+}
+function clearLocal(){
+  try{ localStorage.removeItem(LS_KEY); }catch(e){}
+}
+function updateDataSrcHint(fromLocal){
+  const el = document.getElementById("dataSrcHint");
+  if(!el) return;
+  el.innerHTML = fromLocal
+    ? " · <b>已載入你上次在這台裝置匯入的課表</b>（存在你自己的瀏覽器裡，重開這個網址也還在）"
+    : "";
+}
+
 /* ── 匯入 / 換課表資料 ── */
 function validateData(arr){
   if(!Array.isArray(arr) || arr.length===0) return "資料要是非空的陣列。";
   for(const r of arr){
-    if(r.cls==null||r.day==null||r.period==null||!r.subject||!r.teacher)
-      return "每筆需含 cls、day、period、subject、teacher。有一筆缺欄位。";
+    if(r.cls==null||r.day==null||r.period==null||!r.subject)
+      return "每筆需含 cls、day、period、subject。有一筆缺欄位。";
     if(+r.day<1||+r.day>5||+r.period<1||+r.period>8)
       return "day 需 1–5、period 需 1–8。";
+    // teacher 允許留空（缺教師）：載入後會標示、且不列入對調
   }
   return null;
 }
 function tryLoad(text){
   let arr; try{ arr=JSON.parse(text); }catch(e){ return "JSON 格式錯誤："+e.message; }
   const err=validateData(arr); if(err) return err;
-  loadData(arr); return null;
+  loadData(arr); saveLocal(arr); updateDataSrcHint(true); return null;
 }
 function openImport(){
   const mount=document.getElementById("modalMount");
@@ -672,11 +852,12 @@ function openImport(){
     "<div class='modal-back' id='mback'><div class='modal'>"
     + "<div class='modal-h'><span class='mt'>匯入課表資料</span><button class='mx' id='mx'>✕</button></div>"
     + "<div class='modal-body'>"
-    + "<div class='share-note'>貼上洗好的 JSON（每筆 cls／day／period／subject／teacher，固定節次加 fixed:true），或選擇 .json 檔。載入後會以新資料重跑，試調紀錄會清空。</div>"
+    + "<div class='share-note'>貼上洗好的 JSON（每筆 cls／day／period／subject／teacher，固定節次加 fixed:true），或選擇 .json 檔。載入後會以新資料重跑，試調紀錄會清空，並記在你這台裝置的瀏覽器裡，下次打開這個網址會自動帶入。</div>"
     + "<textarea class='imp-ta' id='impTa' placeholder='[ {\"cls\":\"501\",\"day\":1,\"period\":1,\"subject\":\"英語文\",\"teacher\":\"林安\"}, ... ]'></textarea>"
     + "<div class='imp-err' id='impErr'></div>"
     + "<div class='imp-row'><input type='file' id='impFile' accept='.json,application/json'>"
-    + "<button class='btn-primary' id='impGo'>載入</button></div>"
+    + "<button class='btn-primary' id='impGo'>載入</button>"
+    + "<button class='pngbtn' id='impReset' type='button'>還原成示範資料</button></div>"
     + "</div></div></div>";
   document.getElementById("mx").addEventListener("click", closeModal);
   document.getElementById("mback").addEventListener("click", e=>{ if(e.target.id==="mback") closeModal(); });
@@ -687,6 +868,14 @@ function openImport(){
   document.getElementById("impGo").addEventListener("click", ()=>{
     const err=tryLoad(document.getElementById("impTa").value.trim());
     if(err){ document.getElementById("impErr").textContent=err; } else { closeModal(); }
+  });
+  document.getElementById("impReset").addEventListener("click", ()=>{
+    clearLocal();
+    if(Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
+      loadData(window.SCHEDULE); updateDataSrcHint(false); closeModal();
+    } else {
+      closeModal(); showEmptyState();
+    }
   });
 }
 function showEmptyState(){
@@ -699,9 +888,13 @@ function showEmptyState(){
 }
 document.getElementById("dataBtn").addEventListener("click", openImport);
 
-/* ── 啟動：有內建資料就跑，沒有就顯示匯入畫面 ── */
-if (Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
-  loadData(window.SCHEDULE);
+/* ── 啟動：本機若記得你上次匯入的課表就優先用它，
+   沒有的話用內建資料，都沒有才顯示匯入畫面 ── */
+const _local = loadLocal();
+if (_local){
+  loadData(_local); updateDataSrcHint(true);
+} else if (Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
+  loadData(window.SCHEDULE); updateDataSrcHint(false);
 } else {
   showEmptyState();
 }
