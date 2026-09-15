@@ -48,7 +48,12 @@
   table{border-collapse:collapse; width:100%;}
   th,td{border:1px solid var(--line2); text-align:center; vertical-align:middle;}
   thead th{background:#F6F8FA; font-size:13px; font-weight:700; color:var(--accent); padding:8px 2px;}
-  .t-time{width:52px; font-size:10.5px; color:var(--soft); font-weight:600; line-height:1.25;
+  /* 課表固定等寬：五天一樣寬，長科目名自然斷行，永遠不出現水平捲動。
+     只套在課表這張表（.tt）——「此刻課堂」的 .now-tbl 需要 auto 佈局。 */
+  .tt{table-layout:fixed;}
+  .tt col.time{width:52px;}
+  @media (max-width:520px){ .tt col.time{width:44px;} }
+  .t-time{font-size:10.5px; color:var(--soft); font-weight:600; line-height:1.25;
     background:#F6F8FA; white-space:nowrap; padding:4px 2px;}
   .t-time b{display:block; font-size:12px; color:var(--ink); font-weight:800;}
   .cell{height:50px; padding:3px; font-size:13px; position:relative;}
@@ -60,17 +65,26 @@
   .cell.fixed{background:var(--fixed-bg); cursor:pointer;}
   .cell.fixed .sub{color:var(--fixed);}
   .cell.sel{outline:3px solid var(--you); outline-offset:-3px;}
-  /* 單/雙週輪替、兩週教不同班：同一格疊兩筆，各自可點 */
-  .cell.klass.wksplit{padding:0; cursor:default; display:flex; flex-direction:column;}
-  .wkrow{flex:1 1 50%; padding:2px 3px; cursor:pointer; position:relative; display:flex; flex-direction:column; justify-content:center;}
-  .wkrow:not(:last-child){border-bottom:1px dashed var(--line2);}
+  .cell .sub, .cell .cls{overflow-wrap:anywhere; word-break:break-word;}
+  /* 單/雙週輪替、兩週教不同班：同一格疊兩筆，各自可點。
+     堆疊層一定要放在 <td> 裡面的 div——td 自己設 display:flex 會失去表格儲存格特性，
+     高度與底色不再跟著內容長，第八節就會溢出（v1.1.0 的 bug）。 */
+  .cell.klass.wksplit{padding:0; cursor:default; vertical-align:top;}
+  .wkstack{display:flex; flex-direction:column;}
+  .wkrow{padding:4px 3px; cursor:pointer; position:relative;}
+  .wkrow:not(:last-child){border-bottom:1px solid #fff;}
   .wkrow:hover{background:rgba(46,82,102,.08);}
   .wkrow.sel{outline:2px solid var(--you); outline-offset:-2px; background:var(--you-bg);}
   .wkrow.hl-take{outline:2px solid var(--go); outline-offset:-2px;}
-  .wkrow .sub{font-weight:700; font-size:11.5px; line-height:1.1;}
+  .wkrow .sub{font-weight:700; font-size:11.5px; line-height:1.15;}
   .wkrow .cls{font-size:9.5px; color:var(--soft); margin-top:1px;}
-  .cell .tag{position:absolute; top:2px; right:3px; font-size:9px; font-weight:700;
+  /* 角落標記懸浮，不佔格內寬度；多個標記往下疊，由 .tagged 保留上方空間 */
+  .cell .tags{position:absolute; top:2px; right:3px; z-index:2;
+    display:flex; flex-direction:column; align-items:flex-end; gap:2px;}
+  .cell .tag{font-size:9px; font-weight:700; line-height:1.5; white-space:nowrap;
     color:var(--you); background:#fff; border:1px solid var(--you-line); border-radius:4px; padding:0 3px;}
+  .cell.tagged .sub{padding-top:15px;}
+  .cell.tagged2 .sub{padding-top:30px;}
   .lunch td{background:#E7EBF0; height:8px; padding:0; border-left:0; border-right:0;}
 
   /* right panel */
@@ -194,6 +208,9 @@
   .btn-primary{font-family:var(--font); font-size:14px; font-weight:700; cursor:pointer; color:#fff;
     background:var(--accent); border:0; border-radius:9px; padding:9px 16px;}
   .btn-primary:hover{filter:brightness(1.08);}
+  .linkbtn{font-family:var(--font); font-size:12px; font-weight:700; color:var(--accent);
+    background:none; border:0; border-bottom:1px solid var(--line); padding:0 0 1px; cursor:pointer;}
+  .linkbtn:hover{border-color:var(--accent);}
 
   .legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11.5px; color:var(--soft); margin:14px 2px 0;}
   .legend span{display:inline-flex; align-items:center; gap:5px;}
@@ -216,13 +233,14 @@
   <div class="hint">選一位老師看課表 → 點你想搬走的那一節 → 右側列出同班任課老師誰能跟你對調。切到「此刻課堂」可查某老師現在有沒有課、在哪班。
     <span id="dataSrcHint"></span></div>
 
+  <div id="notice" style="display:none"></div>
+
   <div class="bar">
     <label for="tpick">老師</label>
     <select id="tpick" class="teacher-pick"></select>
+    <span id="meTag" class="hint" style="margin:0"></span>
     <span id="tsum" class="hint" style="margin:0"></span>
   </div>
-
-  <div id="notice" style="display:none"></div>
   <div id="logbar" style="display:none"></div>
 
   <div id="appMain">
@@ -345,7 +363,7 @@ window.SCHEDULE = [
   {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
 ];
 /* ── 版本 ── */
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 document.getElementById("verTag").textContent = VERSION + " · DEMO 示範資料（化名）";
 document.getElementById("footer").innerHTML =
   "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
@@ -367,7 +385,10 @@ const stepColor = i => PALETTE[i % PALETTE.length];
 // 教師欄正規化：null/空白 → ""（缺教師）；其餘去頭尾空白
 const normT = v => (v==null ? "" : String(v)).trim();
 
-function loadData(arr){
+/* fromImport：這份資料是使用者自己匯入的（或本機記得的匯入結果）＝真實課表，
+   才值得問「你是哪位老師」。內建 DEMO 是化名資料，分享連結的同事一進來就被要求
+   從假名單裡挑一個自己，很莫名其妙——那種情況只留下拉旁邊的按鈕讓他自己設。 */
+function loadData(arr, fromImport){
   ORIGINAL = arr.map((r,i)=>{
     const t = normT(r.teacher);
     return {cls:String(r.cls), day:+r.day, period:+r.period,
@@ -395,11 +416,17 @@ function loadData(arr){
     .filter(t=> t!=="" && t!=="—")
     .sort((a,b)=>String(a).localeCompare(b,"zh-Hant"));
   classes  = [...new Set(ORIGINAL.map(r=>r.cls))].sort();
-  current = teachers.includes("林安") ? "林安" : teachers[0];
+  // 開啟時預設看「我」的課表；沒記過人（或記的人不在這份課表裡）才退回預設
+  const me = loadMe();
+  current = teachers.includes(me) ? me
+          : teachers.includes("林安") ? "林安" : teachers[0];
   selected=null; swapLog=[]; nowSel=nowSlot();
   document.getElementById("appMain").style.display="";
   document.getElementById("emptyState").style.display="none";
-  renderNotice(); buildTeacherPick(); renderGrid(); renderRadar();
+  renderNotice(); buildTeacherPick(); renderMeTag(); renderGrid(); renderRadar();
+  // 首次進入（或換了一份課表、記住的名字不在裡面）問一次「你是哪位老師」。
+  // 用 setTimeout 是為了讓匯入視窗先關掉，否則會被它的 closeModal() 收掉。
+  if(fromImport && !teachers.includes(loadMe()) && teachers.length>1) setTimeout(openMePick, 0);
 }
 
 // 掃出需要老師知道、但不阻擋載入的狀況
@@ -427,7 +454,9 @@ function renderNotice(){
   if(a.clashCell) warns.push("疑似重格 "+a.clashCell+" 處");
   if(a.clashT)    warns.push("疑似撞課 "+a.clashT+" 處");
   if(!parts.length && !warns.length){ el.style.display="none"; el.innerHTML=""; return; }
-  let h = "";
+  /* 這是「整份課表資料」的體檢，不是目前這位老師的統計——所以擺在老師下拉的上面，
+     而且句子要自己講清楚範圍，否則會被讀成「我跟誰有 15 格共同授課」。 */
+  let h = "<b style='letter-spacing:1px'>課表資料體檢</b>（整份資料、非單一老師）：";
   if(parts.length) h += "<span>"+parts.join("、")+"——<b>皆不列入對調</b>，請自行確認。</span>";
   if(warns.length) h += "<span style='color:#B4413E;margin-left:8px'>⚠ "+warns.join("、")+"，建議回頭檢查洗檔。</span>";
   el.innerHTML = h;
@@ -470,9 +499,56 @@ function subjectsOf(t,c){
 /* ── 老師下拉 ── */
 const tpick = document.getElementById("tpick");
 tpick.addEventListener("change", ()=>{ current=tpick.value; selected=null; renderGrid(); renderRadar(); });
+/* 老師太多時難找人：下拉依科目分組（optgroup，仍是單層原生選單）。
+   組的先後照科目在課表資料裡第一次出現的順序＝保留原課表的科目順序，「其他」擺最後。
+
+   分組規則踩過的兩個坑，改之前先讀：
+   1. 不能用「他教最多的那一科」。高中老師的課名很雜，這樣會生出一堆只有一個人的組
+      （選修生物-細胞與遺傳、數學A、族群性別與國家的歷史…），56 位老師分成 38 組等於沒分。
+      改成挑「他教的科目裡，全校最多老師在教的那一科」——正式科目自然勝過他個人的選修課名。
+   2. 自主學習／彈性／輔導這類通用課名開很多班，會把所有人吸過去，所以先排除；
+      真的只教這些的人才用它。全部節次都是 fixed 的（社團佔位、導師）歸「其他」。 */
+const GENERIC_SUBJ = /自主學習|彈性|主學習|輔導|週會|社團|班會|活動|自習/;
+function subjectGroups(){
+  const subjTeachers = {}, order = [];
+  ORIGINAL.forEach(r=>{
+    if(r.fixed || !r.teacher) return;
+    (subjTeachers[r.subject] = subjTeachers[r.subject] || new Set()).add(r.teacher);
+    if(order.indexOf(r.subject)<0) order.push(r.subject);
+  });
+  const label = {};
+  teachers.forEach(t=>{
+    const own = {};
+    ORIGINAL.forEach(r=>{ if(r.teacher===t && !r.fixed) own[r.subject]=(own[r.subject]||0)+1; });
+    let list = Object.keys(own);
+    const main = list.filter(s=>!GENERIC_SUBJ.test(s));
+    if(main.length) list = main;
+    let best=null, bestWide=-1, bestOwn=-1;
+    list.forEach(s=>{
+      const wide = subjTeachers[s] ? subjTeachers[s].size : 0;
+      if(wide>bestWide || (wide===bestWide && own[s]>bestOwn)){ bestWide=wide; bestOwn=own[s]; best=s; }
+    });
+    label[t] = best || "其他";
+  });
+  // 收攏：冷門課名併進它字面上就含有的正式科目（數學A→數學、選修物理-力學一→物理）
+  const names = [...new Set(Object.values(label))], merge = {};
+  names.forEach(s=>{
+    let target = null;
+    names.forEach(g=>{ if(g!==s && s.indexOf(g)>=0 && (!target || g.length>target.length)) target=g; });
+    if(target) merge[s] = target;
+  });
+  const groups = {};
+  teachers.forEach(t=>{ const k = merge[label[t]] || label[t]; (groups[k]=groups[k]||[]).push(t); });
+  const rank = s => s==="其他" ? 1e9 : (order.indexOf(s)<0 ? 1e8 : order.indexOf(s));
+  return Object.keys(groups).sort((a,b)=> rank(a)-rank(b)).map(k=>({k, list:groups[k]}));
+}
+function teacherOptionsHTML(sel){
+  return subjectGroups().map(g=> "<optgroup label='"+g.k+"'>"
+    + g.list.map(t=> "<option"+(t===sel?" selected":"")+">"+t+"</option>").join("")
+    + "</optgroup>").join("");
+}
 function buildTeacherPick(){
-  tpick.innerHTML="";
-  teachers.forEach(t=>{ const o=document.createElement("option"); o.value=t; o.textContent=t; tpick.appendChild(o); });
+  tpick.innerHTML = teacherOptionsHTML(current);
   tpick.value = current;
 }
 
@@ -480,7 +556,8 @@ function buildTeacherPick(){
 function gridHTML(teacher, opts={}){
   const hl = opts.highlight || {};
   const selDP = opts.selectedDP || null;
-  let h = "<table><thead><tr><th class='t-time'>節次</th>";
+  let h = "<table class='tt'><colgroup><col class='time'>" + DAYS.map(()=>"<col>").join("") + "</colgroup>"
+        + "<thead><tr><th class='t-time'>節次</th>";
   DAYS.forEach(d=> h+="<th>"+d+"</th>");
   h += "</tr></thead><tbody>";
   PERIODS.forEach(P=>{
@@ -505,7 +582,7 @@ function gridHTML(teacher, opts={}){
           inner += "<div class='wkrow"+isSel+rowHl+"'"+sc+" data-id='"+r.id+"'>"
                  + dot + "<div class='sub'>"+r.subject+"</div><div class='cls'>"+r.cls+wk+"</div></div>";
         });
-        h += "<td class='cell klass wksplit' data-d='"+d+"' data-p='"+P.p+"'>"+inner+"</td>";
+        h += "<td class='cell klass wksplit' data-d='"+d+"' data-p='"+P.p+"'><div class='wkstack'>"+inner+"</div></td>";
       } else if(rs.length === 1){
         const r = rs[0];
         const base = r.fixed ? "fixed" : "klass";
@@ -513,12 +590,17 @@ function gridHTML(teacher, opts={}){
         const sc = moved ? " style=\"--sc:"+stepColor(r._step)+"\"" : "";
         const dot = moved ? "<span class='stepdot'></span>" : "";
         const sel = selDP && selDP.d===d && selDP.p===P.p ? " sel":"";
-        const lian = !r.fixed && lianAround(teacher,r.cls,d,P.p) ? "<span class='tag'>連堂</span>":"";
-        const co = r._co ? "<span class='tag'>共授</span>" : (r._dup ? "<span class='tag'>重格?</span>" : "");
+        // 角落標記：懸浮在右上角，不佔科目名的寬度；兩個標記時往下疊、科目再多讓一行
+        const tagList = [];
+        if(!r.fixed && lianAround(teacher,r.cls,d,P.p)) tagList.push("連堂");
+        if(r._co) tagList.push("共授"); else if(r._dup) tagList.push("重格?");
+        const tags = tagList.length
+          ? "<div class='tags'>"+tagList.map(x=>"<span class='tag'>"+x+"</span>").join("")+"</div>" : "";
+        const tagCls = tagList.length>1 ? " tagged2" : tagList.length ? " tagged" : "";
         const wk = r.week ? " <b class='wk'>"+r.week+"週</b>" : "";
         const cellHl = (mark==="take"&&(markCls==null||markCls===r.cls)) ? " hl-take" : mark==="come" ? " hl-come" : "";
-        h += "<td class='cell "+base+(moved?" moved":"")+sel+cellHl+"'"+sc+" data-d='"+d+"' data-p='"+P.p+"'>"
-           + dot + lian + co + "<div class='sub'>"+r.subject+"</div>"
+        h += "<td class='cell "+base+(moved?" moved":"")+sel+cellHl+tagCls+"'"+sc+" data-d='"+d+"' data-p='"+P.p+"'>"
+           + dot + tags + "<div class='sub'>"+r.subject+"</div>"
            + (r.fixed?"":"<div class='cls'>"+r.cls+wk+"</div>") + "</td>";
       } else {
         const g = ghostFor(teacher,d,P.p);
@@ -807,6 +889,46 @@ setInterval(()=>{
 
 /* ── 本機記憶（只存在使用者自己這台裝置／瀏覽器，不會上傳、不會被別人看到）── */
 const LS_KEY = "tiaoke_schedule_v1";
+const LS_ME  = "tiaoke_me_v1";
+
+/* ── 「我是哪位老師」──────────────────────────────────────────
+   跟上面的下拉選單是兩回事：下拉是「我正在看誰的課表」（分享流程要切到對方去截圖），
+   這裡記的是「我自己」，只決定每次打開時預設顯示誰。切下拉不會改掉它。 */
+function loadMe(){ try{ return localStorage.getItem(LS_ME) || ""; }catch(e){ return ""; } }
+function saveMe(n){ try{ localStorage.setItem(LS_ME, n); }catch(e){} }
+function clearMe(){ try{ localStorage.removeItem(LS_ME); }catch(e){} }
+function renderMeTag(){
+  const el = document.getElementById("meTag"); if(!el) return;
+  const me = loadMe();
+  el.innerHTML = teachers.includes(me)
+    ? "我是 <b style='color:var(--ink)'>"+me+"</b> <button class='linkbtn' id='meBtn' type='button'>換人</button>"
+    : "<button class='linkbtn' id='meBtn' type='button'>設定「我是哪位老師」</button>";
+  document.getElementById("meBtn").addEventListener("click", openMePick);
+}
+function openMePick(){
+  const mount = document.getElementById("modalMount");
+  mount.innerHTML =
+    "<div class='modal-back' id='mback'><div class='modal' style='max-width:420px'>"
+    + "<div class='modal-h'><span class='mt'>你是哪位老師？</span><button class='mx' id='mx' aria-label='關閉'>✕</button></div>"
+    + "<div class='modal-body'>"
+    + "<div class='share-note'>選一次就好，之後打開這個網址會自動顯示你的課表。"
+    + "只記在<b>你自己這台裝置的瀏覽器</b>裡，不會上傳、別人看不到。</div>"
+    + "<select id='mePick' class='teacher-pick' style='width:100%'>"
+    + teacherOptionsHTML(teachers.includes(loadMe()) ? loadMe() : current) + "</select>"
+    + "<div class='imp-row'><button class='btn-primary' id='meGo'>就是我</button>"
+    + "<button class='pngbtn' id='meClear' type='button'>清除記住的人</button></div>"
+    + "</div></div></div>";
+  document.getElementById("mx").addEventListener("click", closeModal);
+  document.getElementById("mback").addEventListener("click", e=>{ if(e.target.id==="mback") closeModal(); });
+  document.getElementById("meGo").addEventListener("click", ()=>{
+    const n = document.getElementById("mePick").value;
+    saveMe(n); current = n; selected = null;
+    buildTeacherPick(); renderMeTag(); renderGrid(); renderRadar(); closeModal();
+  });
+  document.getElementById("meClear").addEventListener("click", ()=>{
+    clearMe(); renderMeTag(); closeModal();
+  });
+}
 function saveLocal(arr){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }catch(e){ /* 私密瀏覽等情境存不了就算了，不影響當下使用 */ }
 }
@@ -844,7 +966,7 @@ function validateData(arr){
 function tryLoad(text){
   let arr; try{ arr=JSON.parse(text); }catch(e){ return "JSON 格式錯誤："+e.message; }
   const err=validateData(arr); if(err) return err;
-  loadData(arr); saveLocal(arr); updateDataSrcHint(true); return null;
+  loadData(arr, true); saveLocal(arr); updateDataSrcHint(true); return null;
 }
 function openImport(){
   const mount=document.getElementById("modalMount");
@@ -872,7 +994,7 @@ function openImport(){
   document.getElementById("impReset").addEventListener("click", ()=>{
     clearLocal();
     if(Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
-      loadData(window.SCHEDULE); updateDataSrcHint(false); closeModal();
+      loadData(window.SCHEDULE, false); updateDataSrcHint(false); closeModal();
     } else {
       closeModal(); showEmptyState();
     }
@@ -892,9 +1014,9 @@ document.getElementById("dataBtn").addEventListener("click", openImport);
    沒有的話用內建資料，都沒有才顯示匯入畫面 ── */
 const _local = loadLocal();
 if (_local){
-  loadData(_local); updateDataSrcHint(true);
+  loadData(_local, true); updateDataSrcHint(true);
 } else if (Array.isArray(window.SCHEDULE) && window.SCHEDULE.length){
-  loadData(window.SCHEDULE); updateDataSrcHint(false);
+  loadData(window.SCHEDULE, false); updateDataSrcHint(false);
 } else {
   showEmptyState();
 }

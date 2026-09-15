@@ -30,6 +30,11 @@
 - **對調按鈕帶的是 row `id`，不是 day/period**：同一位老師同一節可能兩筆，用座標會抓錯那一筆。
 - **痕跡是即時算的，不是儲存的狀態**：某老師某格在 ORIGINAL 有課、在 WORK 已移走 → 顯示 `已調出` ghost。所以復原／重置自動消失，不用另外清。
 - **資料內嵌，不用 fetch**：本機 `file://` 與沙盒都會擋 fetch 外部 JSON。所以資料要嘛內嵌在 `window.SCHEDULE`，要嘛用匯入 UI（貼上／FileReader）在記憶體載入。**不要改成 fetch('schedule.json')**，會在最重要的兩個環境裡壞掉。
+- **課表用 `table-layout:fixed`（class `.tt`）**：五天等寬，長科目名自然斷行。auto 佈局會照內容寬度分配，科目名短的那天被壓成一條，手機上尤其醜。**這個 class 只能掛在課表那張表**——「此刻課堂」的 `.now-tbl` 要維持 auto，全域套下去會壞。
+- **同一格多筆的堆疊層要放在 `<td>` 裡面的 `div`（`.wkstack`）**：`<td>` 自己設 `display:flex` 會讓它不再是表格儲存格，高度與底色不跟著內容長，第八節單／雙週就會溢出（v1.1.0 的 bug，v1.2.0 修掉）。
+- **角落標記（連堂／共授／重格?）懸浮在右上角**：包在 `.tags` 裡 `position:absolute`，不佔科目名的寬度；由 `.cell.tagged`／`.tagged2` 幫科目讓出上方一到兩行，標記才不會壓字。
+- **「我是哪位老師」和「我正在看誰」是兩件事**：下拉是後者（分享流程要切到對方課表去截圖），`tiaoke_me_v1` 記的是前者，只決定每次打開預設顯示誰。**切下拉絕對不能寫回 `tiaoke_me_v1`**，否則截完同事的圖，下次打開就變成同事的課表。
+- **老師下拉的科目分組不要用「他教最多的那一科」**：高中課名很雜，會生出一堆一個人的組（實測 56 位老師被拆成 38 組）。現在的規則是挑「他教的科目裡，全校最多老師在教的那一科」，再把冷門課名併進它字面上含有的正式科目（數學A→數學），並排除自主學習／彈性／輔導這類會把所有人吸過去的通用課名。實測 56 位老師 25 組。
 - **不做 PNG 下載**：沙盒 iframe 擋 `<a download>` 與 `window.open`。改用「切到對方課表自己截圖 + 一鍵複製訊息」。若哪天要一鍵出圖，只有在非沙盒（GitHub Pages/本機）才可行，做法是 canvas 繪圖 + toBlob 下載；沙盒內只能 `<img src=dataURL>` 讓使用者右鍵存。
 
 ## 程式地圖（`index.html` 內的 `<script>`）
@@ -45,12 +50,14 @@
 - `openModal`：看對方課表（固定疊層，關掉自動回原位）。
 - `renderLog` / `buildMessage` / `showShare`：試調紀錄與分享訊息（複製有三層 fallback）。
 - `renderNow`：此刻課堂（同格多筆會併列，並標單/雙週）；`setInterval` 每 20 秒跟著現在時間走，使用者手動改過時間就停手。
+- `subjectGroups / teacherOptionsHTML / buildTeacherPick`：老師下拉依科目分組（optgroup，單層），組序照科目在資料裡第一次出現的順序，「其他」擺最後。
+- `loadMe / saveMe / clearMe / renderMeTag / openMePick`：「我是哪位老師」（key `tiaoke_me_v1`），首次進入或換了一份課表（記住的名字不在裡面）會問一次，下拉旁有「換人」。
 - `saveLocal / loadLocal / clearLocal`：localStorage 本機記憶（key `tiaoke_schedule_v1`），匯入後自動存、下次開同一網址自動帶入，匯入視窗可「還原成示範資料」清掉。
 - 啟動順序：localStorage → `window.SCHEDULE` → `showEmptyState`（匯入畫面）。
 
 ## 目前狀態
 
-v1.1.0，單一版本（根目錄 `index.html`，不再有 v2 分支）。已用一份真實 18 班課表（含 15 格分組選修、13 格隔週輪替、18 筆 `teacher:"—"` 社團佔位）跑過。四大塊：調課雷達、此刻課堂、期初連動試調、截圖分享，外加資料體檢提示與本機記憶。
+v1.2.0，單一版本（根目錄 `index.html`，不再有 v2 分支）。已用一份真實 18 班課表（含 15 格分組選修、13 格隔週輪替、18 筆 `teacher:"—"` 社團佔位）跑過。四大塊：調課雷達、此刻課堂、期初連動試調、截圖分享，外加資料體檢提示與本機記憶。
 
 真實課表與原始 PDF 放在 `private/`，已寫進 `.gitignore`——**不要**讓真名進 repo 或 publish 出去的頁面（見 README〈資料隱私〉）。
 
