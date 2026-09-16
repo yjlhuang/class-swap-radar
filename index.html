@@ -119,7 +119,7 @@
     border:1px solid var(--line); background:#fff; color:var(--accent); border-radius:7px; padding:4px 9px;}
   .viewbtn:hover{border-color:var(--accent);}
 
-  /* moved / ghost cells (期初試調痕跡) */
+  /* moved / ghost cells (試調痕跡) */
   .cell.moved{box-shadow:inset 5px 0 0 var(--sc);}
   .cell .stepdot{position:absolute; top:3px; left:4px; width:9px; height:9px; border-radius:50%;
     background:var(--sc); border:1.5px solid #fff;}
@@ -746,7 +746,7 @@ function renderLog(){
   const el = document.getElementById("logbar");
   if(swapLog.length===0){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="";
-  let h = "<div class='logtop'><b>期初試調</b> · 已對調 "+swapLog.length+" 次"
+  let h = "<div class='logtop'><b>試調紀錄</b> · 已對調 "+swapLog.length+" 次"
         + "<span class='logbtns'><button id='undoBtn'>復原上一步</button>"
         + "<button id='resetBtn'>重置課表</button></span></div><ol class='loglist'>";
   swapLog.forEach(e=> h += "<li><span class='stepdot-inline' style='background:"+stepColor(e.step)+"'></span>"+e.label+"</li>");
