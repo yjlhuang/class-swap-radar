@@ -363,7 +363,7 @@ window.SCHEDULE = [
   {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
 ];
 /* ── 版本 ── */
-const VERSION = "v1.2.1";
+const VERSION = "v1.2.2";
 document.getElementById("verTag").textContent = VERSION + " · DEMO 示範資料（化名）";
 document.getElementById("footer").innerHTML =
   "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
@@ -423,7 +423,7 @@ function loadData(arr, fromImport){
   const me = loadMe();
   current = teachers.includes(me) ? me
           : teachers.includes("林安") ? "林安" : teachers[0];
-  selected=null; swapLog=[]; nowSel=nowSlot();
+  selected=null; swapLog=[]; nowSel=nowSlot(); nowSynced=true;
   document.getElementById("appMain").style.display="";
   document.getElementById("emptyState").style.display="none";
   renderNotice(); buildTeacherPick(); renderMeTag(); renderGrid(); renderRadar();
@@ -824,17 +824,25 @@ function nowSlot(){
     const [ah,am]=P.a.split(":").map(Number), [bh,bm]=P.b.split(":").map(Number);
     if(mins>=ah*60+am && mins<=bh*60+bm) return {d,p:P.p,live:true};
   }
-  return {d,p:1,live:false};
+  // 不在任何節次內（上課前／下課／午休／放學後）：抓最近還沒開始的下一節；
+  // 若已經放學（比第8節還晚），就停在最後一節，而不是每次都跳回第1節。
+  const next = PERIODS.find(P=>{ const [ah,am]=P.a.split(":").map(Number); return mins < ah*60+am; });
+  return {d, p:(next||PERIODS[PERIODS.length-1]).p, live:false};
 }
 let nowSel = nowSlot();
+/* nowSynced：是否還跟著「現在」走，跟 nowSel.live（此刻是不是真的在上課）是兩回事——
+   下課／午休／放學後 nowSel.live 本來就是 false，若拿它當「有沒有對齊」的依據，
+   按下「回到現在」後 live 仍是 false，提示會繼續顯示「已離開現在時間」，看起來像按了沒反應。 */
+let nowSynced = true;
 function renderNow(){
   const box=document.getElementById("paneNow");
   let h="<div class='now-ctl'><label style='align-self:center;font-size:12px;color:var(--soft);font-weight:600'>時間</label>";
   h+="<select id='nd'>"+DAYS.map((x,i)=>"<option value='"+(i+1)+"'"+(nowSel.d===i+1?" selected":"")+">週"+x+"</option>").join("")+"</select>";
   h+="<select id='np'>"+PERIODS.map(P=>"<option value='"+P.p+"'"+(nowSel.p===P.p?" selected":"")+">第"+P.p+"節 "+P.a+"</option>").join("")+"</select>";
   h+="<button id='nowRefresh' class='pngbtn' type='button'>↻ 回到現在</button>";
-  h+=(nowSel.live?"<span class='hint' style='margin:0;align-self:center'>· 現在這節</span>"
-                 :"<span class='hint' style='margin:0;align-self:center'>· 已離開現在時間，點「回到現在」可對齊</span>")+"</div>";
+  h+=(nowSel.live ? "<span class='hint' style='margin:0;align-self:center'>· 現在這節</span>"
+     : nowSynced ? "<span class='hint' style='margin:0;align-self:center'>· 現在非上課時段，顯示最近一節</span>"
+     : "<span class='hint' style='margin:0;align-self:center'>· 已離開現在時間，點「回到現在」可對齊</span>")+"</div>";
   h+="<div class='now-scroll'><table class='now-tbl'><tbody>";
   classes.forEach(c=>{
     const rs=classAtAll(c,nowSel.d,nowSel.p);
@@ -852,9 +860,9 @@ function renderNow(){
   h+="<div class='look'><label style='font-size:12px;color:var(--soft);font-weight:600'>查老師此刻</label> ";
   h+="<select id='nl'><option value=''>—</option>"+teachers.map(t=>"<option>"+t+"</option>").join("")+"</select><div id='nlr'></div></div>";
   box.innerHTML=h;
-  document.getElementById("nd").addEventListener("change",e=>{nowSel.d=+e.target.value;nowSel.live=false;renderNow();});
-  document.getElementById("np").addEventListener("change",e=>{nowSel.p=+e.target.value;nowSel.live=false;renderNow();});
-  document.getElementById("nowRefresh").addEventListener("click",()=>{ nowSel=nowSlot(); renderNow(); });
+  document.getElementById("nd").addEventListener("change",e=>{nowSel.d=+e.target.value;nowSel.live=false;nowSynced=false;renderNow();});
+  document.getElementById("np").addEventListener("change",e=>{nowSel.p=+e.target.value;nowSel.live=false;nowSynced=false;renderNow();});
+  document.getElementById("nowRefresh").addEventListener("click",()=>{ nowSel=nowSlot(); nowSynced=true; renderNow(); });
   document.getElementById("nl").addEventListener("change",e=>{
     const t=e.target.value, out=document.getElementById("nlr");
     if(!t){out.innerHTML="";return;}
@@ -879,10 +887,12 @@ document.getElementById("tabRadar").addEventListener("click",()=>showTab("radar"
 document.getElementById("tabNow").addEventListener("click",()=>showTab("now"));
 
 /* 此刻課堂：跟著「現在」自動走，不用手動重整或重新點開。
-   每 20 秒檢查一次，若使用者還停在「現在這節」(nowSel.live) 且已經跨到下一節/隔天，
-   就自動更新；使用者若手動切換過時間(nowSel.live=false)，就不打擾，只留「回到現在」按鈕。 */
+   每 20 秒檢查一次，若使用者還處於同步狀態(nowSynced) 且時間已經跨到下一節/下課/隔天，
+   就自動更新；使用者若手動切換過時間(nowSynced=false)，就不打擾，只留「回到現在」按鈕。
+   這裡要看 nowSynced，不能看 nowSel.live——下課／午休本來就 live=false，
+   拿 live 當同步旗標會讓下課時間永遠卡住不再自動更新。 */
 setInterval(()=>{
-  if(!nowSel.live) return;
+  if(!nowSynced) return;
   const fresh = nowSlot();
   if(fresh.d!==nowSel.d || fresh.p!==nowSel.p || fresh.live!==nowSel.live){
     nowSel = fresh;
