@@ -363,7 +363,7 @@ window.SCHEDULE = [
   {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
 ];
 /* ── 版本 ── */
-const VERSION = "v1.2.0";
+const VERSION = "v1.2.1";
 document.getElementById("verTag").textContent = VERSION + " · DEMO 示範資料（化名）";
 document.getElementById("footer").innerHTML =
   "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
@@ -399,14 +399,17 @@ function loadData(arr, fromImport){
   /* 同一 cls+day+period 出現多筆，依序判斷（順序不可調換）：
      1. 任一筆有 week → 隔週輪替：兩位老師各上一週，可對調，課表上疊格顯示
      2. 同科目       → 共同授課(_co)：不列入對調
-     3. 不同科目     → 疑似重格(_dup)：洗檔可能節次讀錯，不列入對調並提醒 */
+     3. 全部 fixed   → 本土語文分組等合法同節分組（台語/客語/原住民語各自開課）：
+                        fixed 本來就不列入對調，不算疑似重格，不列警告
+     4. 其餘         → 疑似重格(_dup)：洗檔可能節次讀錯，不列入對調並提醒 */
   const cellGroup = {};
   ORIGINAL.forEach(r=>{ const k=r.cls+"|"+r.day+"|"+r.period; (cellGroup[k]=cellGroup[k]||[]).push(r); });
   Object.values(cellGroup).forEach(g=>{
     if(g.length < 2) return;
     if(g.some(r=>r.week)) return;                       // 隔週輪替，照常可對調
-    const oneSubject = new Set(g.map(r=>r.subject)).size === 1;
-    g.forEach(r=> oneSubject ? (r._co=true) : (r._dup=true));
+    if(new Set(g.map(r=>r.subject)).size === 1){ g.forEach(r=> r._co=true); return; }
+    if(g.every(r=>r.fixed)) return;                      // 分組上課，合法，不列警告
+    g.forEach(r=> r._dup=true);
   });
 
   WORK = ORIGINAL.map(r=>({...r}));
