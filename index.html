@@ -363,7 +363,7 @@ window.SCHEDULE = [
   {cls:"610",day:3,period:3,subject:"音樂",teacher:"楊琪"}
 ];
 /* ── 版本 ── */
-const VERSION = "v1.2.2";
+const VERSION = "v1.3.0";
 document.getElementById("verTag").textContent = VERSION + " · DEMO 示範資料（化名）";
 document.getElementById("footer").innerHTML =
   "調課雷達 <b>"+VERSION+"</b> · Built by YJL Huang with Claude, Gemini and GPT";
@@ -501,7 +501,7 @@ function subjectsOf(t,c){
 
 /* ── 老師下拉 ── */
 const tpick = document.getElementById("tpick");
-tpick.addEventListener("change", ()=>{ current=tpick.value; selected=null; renderGrid(); renderRadar(); });
+tpick.addEventListener("change", ()=>{ current=tpick.value; selected=null; renderGrid(); renderRadar(); renderMeTag(); });
 /* 老師太多時難找人：下拉依科目分組（optgroup，仍是單層原生選單）。
    組的先後照科目在課表資料裡第一次出現的順序＝保留原課表的科目順序，「其他」擺最後。
 
@@ -913,10 +913,20 @@ function clearMe(){ try{ localStorage.removeItem(LS_ME); }catch(e){} }
 function renderMeTag(){
   const el = document.getElementById("meTag"); if(!el) return;
   const me = loadMe();
-  el.innerHTML = teachers.includes(me)
-    ? "我是 <b style='color:var(--ink)'>"+me+"</b> <button class='linkbtn' id='meBtn' type='button'>換人</button>"
+  const isMe = teachers.includes(me);
+  // 下拉切去看同事課表後（截圖分享流程）要能一鍵切回來，不用在下拉裡重新翻自己的名字
+  const backBtn = (isMe && current!==me)
+    ? " <button class='linkbtn' id='backToMeBtn' type='button'>回到我的課表</button>" : "";
+  el.innerHTML = isMe
+    ? "我是 <b style='color:var(--ink)'>"+me+"</b> <button class='linkbtn' id='meBtn' type='button'>換人</button>"+backBtn
     : "<button class='linkbtn' id='meBtn' type='button'>設定「我是哪位老師」</button>";
   document.getElementById("meBtn").addEventListener("click", openMePick);
+  if(isMe && current!==me){
+    document.getElementById("backToMeBtn").addEventListener("click", ()=>{
+      current = me; selected = null;
+      buildTeacherPick(); renderMeTag(); renderGrid(); renderRadar();
+    });
+  }
 }
 function openMePick(){
   const mount = document.getElementById("modalMount");
