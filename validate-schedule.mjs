@@ -18,6 +18,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
 /* ── 小工具 ───────────────────────────────────────────── */
 const DAY = ["", "一", "二", "三", "四", "五"];
@@ -258,15 +259,94 @@ function diffBaseline(rows, base) {
   return out;
 }
 
+/* ── H. 與原始 PDF 對帳（唯一能驗「忠於原稿」的檢查） ──────────
+ *
+ * 前面 A–G 驗的都是「內部一致性」：JSON 自己不矛盾。但抄錯成另一個真實科目、
+ * 抄成另一位真實老師、整班漏一節——只要結果自己不打架，前面全部會放行。
+ * PDF 每頁附的「科目＋老師＋時數」統計表是獨立於課表格子的第二份資料，
+ * 拿它逐列對帳才驗得到忠實度。
+ */
+function crossCheckPdf(rows, pdfPath) {
+  const py = ["python", "py", "python3"].find(cmd => {
+    const t = spawnSync(cmd, ["-c", "import fitz"], { encoding: "utf8" });
+    return t.status === 0;
+  });
+  if (!py) {
+    warns.push(`--pdf 需要 Python 加 PyMuPDF（pip install pymupdf），目前找不到，已跳過 PDF 對帳。`);
+    return;
+  }
+  const r = spawnSync(py, ["pdf-stats.py", pdfPath], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  let pages;
+  try {
+    pages = JSON.parse(r.stdout);
+  } catch {
+    errors.push(`PDF 抽取失敗：${(r.stderr || r.stdout || "無輸出").trim().split("\n").slice(-3).join(" ")}`);
+    return;
+  }
+  if (pages.error) { errors.push(`PDF 抽取失敗：${pages.error}`); return; }
+
+  const lines = [];
+  let okCls = 0, badCls = 0, brokenNames = 0;
+
+  for (const p of pages) {
+    // 這班在 JSON 裡的 (科目|老師) → 筆數
+    const actual = new Map();
+    for (const x of rows.filter(x => x.cls === p.cls)) {
+      const k = key(x.subject, x.teacher);
+      actual.set(k, (actual.get(k) || 0) + 1);
+    }
+    const jsonCount = [...actual.values()].reduce((a, b) => a + b, 0);
+    const miss = [];
+
+    for (const pr of p.rows) {
+      if (pr.broken) brokenNames++;
+      // 找出 JSON 裡對應的那一筆。
+      // 截斷 → 科目只能前綴比對；姓名壞掉或黏住認不出 → 放寬老師欄，只比科目與節數。
+      const anyTeacher = pr.broken || pr.teacher === null;
+      const hit = [...actual.keys()].find(k => {
+        const [s, t] = k.split("|");
+        const subjOK = pr.truncated ? s.startsWith(pr.subject) : s === pr.subject;
+        return subjOK && (anyTeacher || t === pr.teacher) && actual.get(k) > 0;
+      });
+      if (!hit) { miss.push(`PDF 有、JSON 沒有：${pr.subject}·${pr.teacher ?? "（姓名認不出）"} ${pr.hours} 節`); continue; }
+      const got = actual.get(hit);
+      if (got !== pr.hours) miss.push(`節數不符：${pr.subject}·${pr.teacher}　PDF ${pr.hours}　JSON ${got}`);
+      actual.set(hit, 0);
+    }
+    for (const [k, n] of actual) if (n > 0) miss.push(`JSON 有、PDF 沒有：${k.replace("|", "·")} ${n} 筆`);
+
+    if (jsonCount !== p.sum_hours) miss.unshift(`筆數不符：PDF 統計表合計 ${p.sum_hours}　JSON ${jsonCount} 筆`);
+
+    if (miss.length) {
+      badCls++;
+      errors.push(`${p.cls} 與 PDF 第 ${p.page} 頁對不上（${miss.length} 項）：`);
+      miss.slice(0, 8).forEach(m => errors.push(`   ${m}`));
+      if (miss.length > 8) errors.push(`   （另有 ${miss.length - 8} 項）`);
+    } else {
+      okCls++;
+      lines.push(`${p.cls} ✅ ${p.rows.length} 列／${p.sum_hours} 筆`);
+    }
+  }
+  if (brokenNames) {
+    notes.push(`PDF 統計表裡有 ${brokenNames} 列的老師姓名是壞的（文字層缺陷），對帳時已放寬姓名比對、只對科目與節數`);
+  }
+  notes.push(`「總時數」欄算的是格數（同格多老師只算一格），所以一定小於筆數；對帳用的是統計表合計，不是那個數字`);
+  sections.push(["PDF 對帳", badCls ? `❌ ${badCls} 班對不上` : `✅ ${okCls} 班全對`, ""]);
+  return lines;
+}
+
 /* ── 主流程 ─────────────────────────────────────────── */
 const args = process.argv.slice(2);
 const bi = args.indexOf("--baseline");
+const pi = args.indexOf("--pdf");
 const baseFile = bi >= 0 ? args[bi + 1] : null;
+const pdfFile = pi >= 0 ? args[pi + 1] : null;
 // 位置參數＝第一個不是旗標、也不是旗標的值的東西
-const file = args.find((a, i) => !a.startsWith("--") && !(bi >= 0 && i === bi + 1));
+const flagValue = i => (bi >= 0 && i === bi + 1) || (pi >= 0 && i === pi + 1);
+const file = args.find((a, i) => !a.startsWith("--") && !flagValue(i));
 
 if (!file) {
-  console.error("用法：node validate-schedule.mjs <schedule.json> [--baseline <上學期.json>]");
+  console.error("用法：node validate-schedule.mjs <schedule.json> [--baseline <上學期.json>] [--pdf <課表.pdf>]");
   process.exit(2);
 }
 
@@ -277,6 +357,7 @@ checkClash(rows);
 checkPairedSubjects(rows);
 checkNames(rows);
 const sum = summarize(rows);
+const pdfLines = pdfFile ? crossCheckPdf(rows, pdfFile) : null;
 
 console.log(`\n調課雷達｜洗檔驗證　${file}`);
 console.log("─".repeat(60));
@@ -291,8 +372,15 @@ for (let i = 0; i < sum.perClass.length; i += 6) {
 }
 
 console.log("\n檢查項目：");
+// 中文字是雙寬、英數是單寬，padEnd 只數字元會對不齊，所以自己算顯示寬度
+const dispWidth = s => [...s].reduce((n, c) => n + (/[⺀-鿿＀-｠　]/.test(c) ? 2 : 1), 0);
 for (const [name, status, extra] of sections) {
-  console.log(`  ${name.padEnd(6, "　")}${status}${extra ? "　" + extra : ""}`);
+  console.log(`  ${name}${" ".repeat(Math.max(1, 12 - dispWidth(name)))}${status}${extra ? "　" + extra : ""}`);
+}
+
+if (pdfLines && pdfLines.length) {
+  console.log(`\n與 ${pdfFile} 逐科逐師對帳（全對的班）：`);
+  for (let i = 0; i < pdfLines.length; i += 3) console.log("  " + pdfLines.slice(i, i + 3).join("   "));
 }
 
 if (baseFile) {

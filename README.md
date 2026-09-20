@@ -79,12 +79,30 @@
 
 ```bash
 node validate-schedule.mjs schedule.json
-node validate-schedule.mjs 新的.json --baseline 上學期的.json   # 跟上學期結構對照
+node validate-schedule.mjs 新的.json --baseline 上學期的.json     # 跟上學期結構對照
+node validate-schedule.mjs schedule.json --pdf 班級課表.pdf      # 跟原始 PDF 逐科逐師對帳
 ```
 
 它實作的四個檢查：每班筆數是否明顯偏離其他班（整塊漏掉的徵兆）；同一位老師同一天同一節不能出現兩筆「一般課」（隔週輪替、分組選修、`teacher:"—"` 的固定活動佔位例外，那本來就設計成可以同格多筆）；同一班同一節同理；以及同一格的兩筆不該是同一科（兩位老師通常是兩科對開）。
 
 前三條的判斷邏輯跟 `index.html` 的 `loadData()`／`auditData()` 對齊，所以這裡過了、匯進去就不會跳警告。**第四條 `index.html` 永遠抓不到**——它的重格判斷裡 `week` 排在「同科目」前面，有 `week` 標記就直接放行了，所以「兩筆抄成同一科」只有洗檔端擋得住。
+
+### `--pdf`：唯一驗得到「忠於原稿」的檢查
+
+上面四條驗的都是**內部一致性**——JSON 自己不矛盾。但如果某格把「歷史」抄成「地理」、把王老師抄成李老師、或整班漏掉一科，只要結果自己不打架，它們一律放行。
+
+原始 PDF 每頁除了課表格子，還附一張**「科目＋老師＋時數」的統計表**，那是獨立於格子的第二份資料。`--pdf` 會把它抽出來逐列對帳，這才驗得到忠實度：
+
+```
+PDF 對帳    ✅ 18 班全對
+  401 ✅ 21 列／38 筆   402 ✅ 20 列／38 筆   403 ✅ 19 列／35 筆 ...
+```
+
+⚠️ **不要用那張表上的「總時數」數字核對筆數**——它算的是**格數**，同格多老師只算一格，一定會比筆數少。要用統計表本身的合計（實測 401 班：總時數寫 35、統計表合計 38、洗出來也是 38）。
+
+這張表還有一個附加價值：它逐位老師分開列，所以**「對開輔導課哪位老師教哪一科」有現成答案**，不必靠「看他在別班教什麼」去推。
+
+`--pdf` 需要 Python 與 PyMuPDF（`pip install pymupdf`），抽取邏輯在 `pdf-stats.py`；沒裝的話會跳過這項、其餘檢查照跑。
 
 ## 資料隱私：DEMO 連結 vs 真實課表
 
@@ -101,6 +119,7 @@ node validate-schedule.mjs 新的.json --baseline 上學期的.json   # 跟上�
 | `index.html` | 完整單檔前端（含所有功能＋匯入＋本機記憶＋資料體檢） |
 | `schedule.sample.json` | 示範假資料，也是格式範本 |
 | `validate-schedule.mjs` | 洗檔驗證器：JSON 匯入前先過一關（`node validate-schedule.mjs schedule.json`） |
+| `pdf-stats.py` | 從課表 PDF 抽出每頁的「科目＋老師＋時數」統計表，供 `--pdf` 對帳用 |
 | `wash-prompt.md` | 給 Claude／GPT 洗 PDF 的通用指示（v3） |
 | `SKILL.md` | Claude Skill（v3，已用一份真實 18 班課表驗證過洗資料流程） |
 | `HANDOFF.md` | 給接手開發者／LLM 的架構與決策說明 |

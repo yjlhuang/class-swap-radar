@@ -108,4 +108,7 @@
 > ```bash
 > node validate-schedule.mjs schedule.json
 > node validate-schedule.mjs schedule.json --baseline 上學期的.json
+> node validate-schedule.mjs schedule.json --pdf 班級課表.pdf   # 跟原始 PDF 逐科逐師對帳
 > ```
+>
+> 最後那個 `--pdf` 最重要：前面的檢查只驗 JSON 自己一不一致，**只有跟 PDF 對帳才驗得到有沒有抄錯**。
