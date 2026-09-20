@@ -73,9 +73,18 @@
 
 ## 洗課表資料
 
-把班級課表 PDF 交給 Claude 或 GPT，配合 `wash-prompt.md` 的指示，就能產出上面格式的 JSON。重點規則（如「社團／班週會沒寫老師 = 該節為固定時段」「同格多位老師 → 各產一筆＋fixed:true」「單/雙週輪替 → 各產一筆＋week 標記」）都寫在那份 prompt 裡。Claude 使用者也可用 `SKILL.md` 打包成 Skill。
+把班級課表 PDF 交給 Claude 或 GPT，配合 `wash-prompt.md`（v3）的指示，就能產出上面格式的 JSON。重點規則（如「社團沒寫老師 → `teacher:"—"`；班週會沒寫老師 → 填該班導師」「同格多位老師 → 各產一筆＋fixed:true」「單/雙週輪替 → 各產一筆＋week 標記」「**一格展開成多筆時，`subject` 要跟著那位老師的本科走，不要照抄格子上的標籤**」）都寫在那份 prompt 裡。Claude 使用者也可用 `SKILL.md` 打包成 Skill（同一套規則的兩種包裝，改一邊要同步改另一邊）。
 
-洗完建議做兩個檢查：每班「總時數」跟洗出來的筆數（含被跳過又展開的分組/輪替課）要對得起來；同一位老師同一天同一節不能出現兩筆「一般課」（隔週輪替、分組選修例外，因為那本來就是設計成可以同格多筆）。
+洗完**一律用 `validate-schedule.mjs` 過一遍**，不要靠眼睛核：
+
+```bash
+node validate-schedule.mjs schedule.json
+node validate-schedule.mjs 新的.json --baseline 上學期的.json   # 跟上學期結構對照
+```
+
+它實作的四個檢查：每班筆數是否明顯偏離其他班（整塊漏掉的徵兆）；同一位老師同一天同一節不能出現兩筆「一般課」（隔週輪替、分組選修、`teacher:"—"` 的固定活動佔位例外，那本來就設計成可以同格多筆）；同一班同一節同理；以及同一格的兩筆不該是同一科（兩位老師通常是兩科對開）。
+
+前三條的判斷邏輯跟 `index.html` 的 `loadData()`／`auditData()` 對齊，所以這裡過了、匯進去就不會跳警告。**第四條 `index.html` 永遠抓不到**——它的重格判斷裡 `week` 排在「同科目」前面，有 `week` 標記就直接放行了，所以「兩筆抄成同一科」只有洗檔端擋得住。
 
 ## 資料隱私：DEMO 連結 vs 真實課表
 
@@ -91,8 +100,9 @@
 |---|---|
 | `index.html` | 完整單檔前端（含所有功能＋匯入＋本機記憶＋資料體檢） |
 | `schedule.sample.json` | 示範假資料，也是格式範本 |
-| `wash-prompt.md` | 給 Claude／GPT 洗 PDF 的通用指示 |
-| `SKILL.md` | Claude Skill 草稿（已用一份真實 18 班課表驗證過洗資料流程） |
+| `validate-schedule.mjs` | 洗檔驗證器：JSON 匯入前先過一關（`node validate-schedule.mjs schedule.json`） |
+| `wash-prompt.md` | 給 Claude／GPT 洗 PDF 的通用指示（v3） |
+| `SKILL.md` | Claude Skill（v3，已用一份真實 18 班課表驗證過洗資料流程） |
 | `HANDOFF.md` | 給接手開發者／LLM 的架構與決策說明 |
 | `.gitignore` | 把真實課表／原始 PDF（`private/`、`*課表.json`）擋在 repo 外 |
 
